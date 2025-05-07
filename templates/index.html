@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flask Async Controller</title>
+    <script>
+        async function startTask() {
+            const response = await fetch('/start_task', { method: 'POST' });
+            const data = await response.json();
+            alert(data.status);
+            updateStatus();
+        }
+
+        async function cancelTask() {
+            const response = await fetch('/cancel_task', { method: 'POST' });
+            const data = await response.json();
+            alert(data.status);
+            updateStatus();
+        }
+
+        async function updateStatus() {
+            const response = await fetch('/task_status');
+            const data = await response.json();
+            document.getElementById('status').innerText = "Status: " + data.status;
+        }
+
+        setInterval(updateStatus, 2000);  // Automatically refresh status every 2 seconds
+        window.onload = updateStatus;
+    </script>
+</head>
+<body>
+    <h1>Flask Async Controller</h1>
+    <p id="status">Status: Unknown</p>
+    <button onclick="startTask()">Start Task</button>
+    <button onclick="cancelTask()">Cancel Task</button>
+</body>
+</html>
