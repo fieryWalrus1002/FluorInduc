@@ -166,92 +166,10 @@ class IOController:
             dwfconstants.AnalogOutNodeCarrier,
             c_double(0),
         )
-        # self.dwf.FDwfAnalogOutRunSet(self.hdwf, self.act_analog_out, c_double(pulse)) # pulse length
         self.dwf.FDwfAnalogOutWaitSet(self.hdwf, self.act_analog_out, c_double(0)) # wait length
         self.dwf.FDwfAnalogOutRepeatSet(self.hdwf, self.act_analog_out, c_int(1)) # repeat once
 
         self.dwf.FDwfAnalogOutConfigure(self.hdwf, self.act_analog_out, c_bool(True))
-
-    # def record(self, channel, n_samples, hz_acq=1000000, filename = "record.csv"):
-    #     """
-    #     Record the signal from the specified channel and save it to a CSV file.
-    #     """
-    #     # declare ctype variables
-
-    #     sts = c_byte()
-    #     hzAcq = c_double(hz_acq)
-    #     rgdSamples = (c_double * n_samples)()
-    #     cAvailable = c_int()
-    #     cLost = c_int()
-    #     cCorrupted = c_int()
-    #     fLost = 0
-    #     fCorrupted = 0
-    #     time_step = 1.0 / hzAcq.value
-
-    #     self.dwf.FDwfAnalogInChannelEnableSet(self.hdwf, c_int(0), c_bool(True))
-    #     self.dwf.FDwfAnalogInChannelRangeSet(self.hdwf, c_int(0), c_double(2))
-    #     self.dwf.FDwfAnalogInAcquisitionModeSet(self.hdwf, acqmodeRecord)
-    #     self.dwf.FDwfAnalogInFrequencySet(self.hdwf, hzAcq)
-    #     self.dwf.FDwfAnalogInRecordLengthSet(
-    #         self.hdwf, c_double(n_samples / hzAcq.value)
-    #     )  # -1 infinite record length
-
-    #     # wait at least 2 seconds for the offset to stabilize
-    #     time.sleep(2)
-
-    #     print("Starting oscilloscope")
-    #     self.dwf.FDwfAnalogInConfigure(self.hdwf, c_int(0), c_int(1))
-
-    #     cSamples = 0
-
-    #     while cSamples < n_samples:
-    #         self.dwf.FDwfAnalogInStatus(self.hdwf, c_int(1), byref(sts))
-    #         if cSamples == 0 and (
-    #             sts == DwfStateConfig or sts == DwfStatePrefill or sts == DwfStateArmed
-    #         ):
-    #             # Acquisition not yet started.
-    #             continue
-
-    #         self.dwf.FDwfAnalogInStatusRecord(
-    #             self.hdwf, byref(cAvailable), byref(cLost), byref(cCorrupted)
-    #         )
-
-    #         cSamples += cLost.value
-
-    #         if cLost.value:
-    #             fLost = 1
-    #         if cCorrupted.value:
-    #             fCorrupted = 1
-
-    #         if cAvailable.value == 0:
-    #             continue
-
-    #         if cSamples + cAvailable.value > n_samples:
-    #             cAvailable = c_int(n_samples - cSamples)
-
-    #         self.dwf.FDwfAnalogInStatusData(
-    #             self.hdwf, c_int(0), byref(rgdSamples, sizeof(c_double) * cSamples), cAvailable
-    #         )  # get channel 1 data
-    #         # dwf.FDwfAnalogInStatusData(hdwf, c_int(1), byref(rgdSamples, sizeof(c_double)*cSamples), cAvailable) # get channel 2 data
-    #         cSamples += cAvailable.value
-
-    #     self.dwf.FDwfAnalogOutReset(self.hdwf, c_int(0))
-    #     self.dwf.FDwfDeviceCloseAll()
-
-    #     print("Recording done")
-    #     if fLost:
-    #         print("Samples were lost! Reduce frequency")
-    #     if fCorrupted:
-    #         print("Samples could be corrupted! Reduce frequency")
-
-    #     # Open the CSV file and write the time and sample data
-    #     with open(filename, "w") as f:
-    #         f.write("Time (s),Voltage\n")  # Add a header for clarity
-    #         for i, v in enumerate(rgdSamples):
-    #             time_ms = i * time_step  # Calculate the time for each sample
-    #             f.write(f"{time_ms},{v}\n")
-
-    #     print("Data with time axis saved to record.csv")
 
     def cleanup(self):
         """

@@ -1,6 +1,9 @@
 from flask import Flask, render_template, jsonify, request
-from src.io_controller import IOController
+import os
 import threading
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+from src.io_controller import IOController
 
 app = Flask(__name__)
 controller = IOController()
@@ -41,5 +44,7 @@ def task_status():
         return jsonify({"status": "Running"})
     return jsonify({"status": "Idle"})
 
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
