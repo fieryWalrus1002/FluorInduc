@@ -18,7 +18,7 @@
         }
 
         async function updateStatus() {
-            const response = await fetch('/task_status');
+            const response = await fetch('/device_status');
             const data = await response.json();
             document.getElementById('status').innerText = "Status: " + data.status;
         }

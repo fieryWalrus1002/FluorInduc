@@ -20,8 +20,11 @@ def start_task():
         return jsonify({"status": "Task already running."})
 
     def run():
-        result = controller.run_task()
-        print(f"Task finished with result: {result}")
+        try:
+            result = controller.run_task()
+            print(f"Task finished with result: {result}")
+        except Exception as e:
+            print(f"Error running task: {e}")
 
     task_thread = threading.Thread(target=run)
     task_thread.start()
@@ -37,14 +40,24 @@ def cancel_task():
     task_thread.join()  # Wait for the thread to actually terminate
     return jsonify({"status": "Task canceled."})
 
-@app.route('/task_status', methods=['GET'])
-def task_status():
+@app.route("/device_status", methods=["GET"])
+def device_status():
     global task_thread
-    if task_thread and task_thread.is_alive():
-        return jsonify({"status": "Running"})
-    return jsonify({"status": "Idle"})
+    status = "Running" if task_thread and task_thread.is_alive() else "Idle"
+    return jsonify({"status": status})
 
-
+@app.route("/shutdown", methods=["POST"])
+def shutdown():
+    """Clean up the device and stop the Flask server."""
+    try:
+        controller.cancel_task()
+        controller.cleanup()
+        print("Device cleaned up.")
+    
+        return jsonify({"status": "Task canceled, device cleaned up."})
+    except Exception as e:
+        print(f"Error during shutdown: {e}")
+        return jsonify({"status": "Error during shutdown."}), 500
 
 if __name__ == '__main__':
     app.run(debug=False)
