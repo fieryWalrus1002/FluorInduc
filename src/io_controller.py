@@ -14,6 +14,12 @@ import threading
 class IOController:
     def __init__(self):
         self._stop_event = threading.Event()
+        self.hwdf = None # device handle, set during open_device
+
+    def open_device(self):
+        if self.hwdf:
+            print("Device already opened.")
+            return
 
         # Load the DWF library
         if sys.platform.startswith("win"):
@@ -28,7 +34,6 @@ class IOController:
         print("DWF Version: " + str(version.value))
 
         # Open the device
-
         print("Opening first device")
         self.hdwf = c_int()
         self.dwf.FDwfDeviceOpen(c_int(-1), byref(self.hdwf))
@@ -38,7 +43,8 @@ class IOController:
             szerr = create_string_buffer(512)
             self.dwf.FDwfGetLastErrorMsg(szerr)
             print(str(szerr.value))
-            quit()
+            self.hdwf = None
+            raise RuntimeError("Failed to open device")
 
         # Initialize system clock and pins
         self.hzSys = c_double()
@@ -60,16 +66,20 @@ class IOController:
         # # Enable pins for output
         self.dwf.FDwfDigitalIOOutputEnableSet(self.hdwf, c_int(self.pin_mask), c_int(self.output_mask))
 
-        # self.dwf.FDwfDigitalOutEnableSet(self.hdwf, c_int(self.pin_gate), c_int(1))
-        # self.dwf.FDwfDigitalOutEnableSet(self.hdwf, c_int(self.pin_trigger), c_int(1))
-        # self.dwf.FDwfDigitalOutEnableSet(
-        #     self.hdwf, c_int(self.pin_measure_led), c_int(1)
-        # )
-
-        # Configure device behavior on close
-        # self.dwf.FDwfParamSet(DwfParamOnClose, c_int(0))  # 0 = run, 1 = stop, 2 = shutdown
-        # self.dwf.FDwfDeviceAutoConfigureSet(self.hdwf, c_int(0))  # Manual configuration
+        # ensure that the trigger pin is set to high to begin with
         self.set_pin(self.pin_trigger, 1)
+
+    def close_device(self):
+        """Close the device properly."""
+        if self.hdwf:
+            print("Closing device...")
+            self.dwf.FDwfDigitalOutReset(self.hdwf)
+
+            self.dwf.FDwfDeviceCloseAll()
+            self.hdwf = None
+            print("Device closed.")
+
+            self._stop_event.clear()  # Clear the stop event to allow for future tasks
 
     def print_io_status(self):
         """
@@ -116,67 +126,51 @@ class IOController:
             self.set_pin(self.pin_trigger, 1)
             self.set_pin(self.pin_gate, 0)
 
-    def set_act_led(self, value):
+    def set_led_with_analog_voltage(self, led_number, value):
         """
-        # the device will be configured only when calling FDwfAnalogOutConfigure
-        dwf.FDwfDeviceAutoConfigureSet(hdwf, c_int(0))
-
-        dwf.FDwfAnalogOutNodeEnableSet(hdwf, channel, AnalogOutNodeCarrier, c_bool(True))
-        dwf.FDwfAnalogOutIdleSet(hdwf, channel, DwfAnalogOutIdleOffset)
-        dwf.FDwfAnalogOutNodeFunctionSet(hdwf, channel, AnalogOutNodeCarrier, funcSquare)
-        dwf.FDwfAnalogOutNodeFrequencySet(hdwf, channel, AnalogOutNodeCarrier, c_double(0)) # low frequency
-        dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, channel, AnalogOutNodeCarrier, c_double(3.3))
-        dwf.FDwfAnalogOutNodeOffsetSet(hdwf, channel, AnalogOutNodeCarrier, c_double(0))
-        dwf.FDwfAnalogOutRunSet(hdwf, channel, c_double(pulse)) # pulse length
-        dwf.FDwfAnalogOutWaitSet(hdwf, channel, c_double(0)) # wait length
-        dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(1)) # repeat once
-
-        print("Generating pulse")
-        dwf.FDwfAnalogOutConfigure(hdwf, channel, c_bool(True))
+        
         """
+
+        led_int = int(led_number)
+        if led_int < 0 or led_int > 3:
+            raise ValueError("LED number must be between 0 and 3.")
+
         # Set the analog output to the modulation value
         self.dwf.FDwfAnalogOutNodeEnableSet(
-            self.hdwf, self.act_analog_out, dwfconstants.AnalogOutNodeCarrier, c_bool(True)
+            self.hdwf, led_int, dwfconstants.AnalogOutNodeCarrier, c_bool(True)
         )
         self.dwf.FDwfAnalogOutIdleSet(
-            self.hdwf, self.act_analog_out, dwfconstants.DwfAnalogOutIdleOffset
+            self.hdwf, led_int, dwfconstants.DwfAnalogOutIdleOffset
         )
         self.dwf.FDwfAnalogOutNodeFunctionSet(
             self.hdwf,
-            self.act_analog_out,
+            led_int,
             dwfconstants.AnalogOutNodeCarrier,
             dwfconstants.funcSquare,
         )
 
         self.dwf.FDwfAnalogOutNodeFrequencySet(
             self.hdwf,
-            self.act_analog_out,
+            led_int,
             dwfconstants.AnalogOutNodeCarrier,
             c_double(0),
         )  # low frequency
         self.dwf.FDwfAnalogOutNodeAmplitudeSet(
             self.hdwf,
-            self.act_analog_out,
+            led_int,
             dwfconstants.AnalogOutNodeCarrier,
             c_double(value),
         )
         self.dwf.FDwfAnalogOutNodeOffsetSet(
             self.hdwf,
-            self.act_analog_out,
+            led_int,
             dwfconstants.AnalogOutNodeCarrier,
             c_double(0),
         )
-        self.dwf.FDwfAnalogOutWaitSet(self.hdwf, self.act_analog_out, c_double(0)) # wait length
-        self.dwf.FDwfAnalogOutRepeatSet(self.hdwf, self.act_analog_out, c_int(1)) # repeat once
+        self.dwf.FDwfAnalogOutWaitSet(self.hdwf, led_int, c_double(0))  # wait length
+        self.dwf.FDwfAnalogOutRepeatSet(self.hdwf, led_int, c_int(1))  # repeat once
 
-        self.dwf.FDwfAnalogOutConfigure(self.hdwf, self.act_analog_out, c_bool(True))
-
-    def cleanup(self):
-        """
-        Reset the device and close all connections.
-        """
-        self.dwf.FDwfDigitalOutReset(self.hdwf)
-        self.dwf.FDwfDeviceCloseAll()
+        self.dwf.FDwfAnalogOutConfigure(self.hdwf, led_int, c_bool(True))
 
     def record_and_save(
         self, channel, n_samples, hz_acq=100000, filename="record_1.csv"
@@ -194,16 +188,63 @@ class IOController:
 
         recorder.record_and_save(channel, n_samples, hz_acq, filename)
 
-    def run_task(self):
-        """Simulate a long-running task with periodic checks for cancellation."""
+    def sanitize_intensity(self, intensity):
+        """
+        Ensure the intensity value is within the range of 0 to 100.
+        """
+        if intensity < 0:
+            return 0
+        elif intensity > 100:
+            return 100
+        return intensity
+
+    def get_voltage_from_intensity(self, intensity):
+        """
+        Convert intensity percentage to voltage.
+        """
+        return 5.0 * (self.sanitize_intensity(intensity) / 100.0)
+
+    def run_task(
+        self,
+        actinic_led_intensity=50,
+        measurement_led_intensity=50,
+        recording_length=10,
+        shutter_state=False,
+    ):
+        """Perform a task with periodic checks for cancellation."""
+
+        act_voltage = self.get_voltage_from_intensity(actinic_led_intensity)
+        meas_voltage = self.get_voltage_from_intensity(measurement_led_intensity)
+        print(f"IOController: Setting actinic LED to {act_voltage}V")
+        print(f"IOController: Setting measuring LED intensity to {meas_voltage}V")
+        print(f"IOController: Starting task with recording length of {recording_length} seconds.") 
+        print(f"IOController: Setting shutter state to {shutter_state}")
+
+        self.open_device()
+        self._stop_event.clear()  # Ensure the stop event is reset
         print("IOController: Task started.")
-        for i in range(10):
+
+        for i in range(recording_length):
+
             if self._stop_event.is_set():
                 print("IOController: Task canceled.")
+                self.close_device()
                 return "Task Canceled"
+
             print(f"IOController: Running step {i + 1}/10...")
-            time.sleep(4)  # Simulate work (each step takes 4 seconds)
+            self.toggle_measure_led(True if meas_voltage > 0 else False)
+
+            if i % 2 == 0:
+                self.set_led_with_analog_voltage(self.act_analog_out, act_voltage)
+            else:
+                self.set_led_with_analog_voltage(self.act_analog_out, 0.0)
+
+            self.toggle_shutter(shutter_state)
+
+            time.sleep(1)
+
         print("IOController: Task completed.")
+        self.close_device()
         return "Task Completed"
 
     def cancel_task(self):
@@ -211,6 +252,9 @@ class IOController:
         print("IOController: Cancellation requested.")
         self._stop_event.set()
 
+    def cleanup(self):
+        """Cleanup and release the device."""
+        self.close_device()
 
 if __name__ == "__main__":
     print("Starting controller")

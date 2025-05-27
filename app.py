@@ -19,9 +19,24 @@ def start_task():
     if task_thread and task_thread.is_alive():
         return jsonify({"status": "Task already running."})
 
+    # Extract user-provided parameters (defaults if not provided)
+    data = request.get_json()
+    measurement_led_intensity = data.get("measurement_led_intensity", 50)
+    actinic_led_intensity = data.get("actinic_led_intensity", 50)
+    recording_length = data.get("recording_length", 10)
+    shutter_state = data.get("shutter_state", False)
+
     def run():
-        result = controller.run_task()
-        print(f"Task finished with result: {result}")
+        try:
+            result = controller.run_task(
+                actinic_led_intensity=actinic_led_intensity,
+                measurement_led_intensity=measurement_led_intensity,
+                recording_length=recording_length,
+                shutter_state=shutter_state
+            )
+            print(f"Task finished with result: {result}")
+        except Exception as e:
+            print(f"Error running task: {e}")
 
     task_thread = threading.Thread(target=run)
     task_thread.start()
@@ -37,14 +52,24 @@ def cancel_task():
     task_thread.join()  # Wait for the thread to actually terminate
     return jsonify({"status": "Task canceled."})
 
-@app.route('/task_status', methods=['GET'])
-def task_status():
+@app.route("/device_status", methods=["GET"])
+def device_status():
     global task_thread
-    if task_thread and task_thread.is_alive():
-        return jsonify({"status": "Running"})
-    return jsonify({"status": "Idle"})
+    status = "Running" if task_thread and task_thread.is_alive() else "Idle"
+    return jsonify({"status": status})
 
-
+@app.route("/shutdown", methods=["POST"])
+def shutdown():
+    """Clean up the device and stop the Flask server."""
+    try:
+        controller.cancel_task()
+        controller.cleanup()
+        print("Device cleaned up.")
+    
+        return jsonify({"status": "Task canceled, device cleaned up."})
+    except Exception as e:
+        print(f"Error during shutdown: {e}")
+        return jsonify({"status": "Error during shutdown."}), 500
 
 if __name__ == '__main__':
     app.run(debug=False)
