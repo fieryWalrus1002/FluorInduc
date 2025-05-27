@@ -19,9 +19,21 @@ def start_task():
     if task_thread and task_thread.is_alive():
         return jsonify({"status": "Task already running."})
 
+    # Extract user-provided parameters (defaults if not provided)
+    data = request.get_json()
+    measurement_led_intensity = data.get("measurement_led_intensity", 50)
+    actinic_led_intensity = data.get("actinic_led_intensity", 50)
+    recording_length = data.get("recording_length", 10)
+    shutter_state = data.get("shutter_state", False)
+
     def run():
         try:
-            result = controller.run_task()
+            result = controller.run_task(
+                actinic_led_intensity=actinic_led_intensity,
+                measurement_led_intensity=measurement_led_intensity,
+                recording_length=recording_length,
+                shutter_state=shutter_state
+            )
             print(f"Task finished with result: {result}")
         except Exception as e:
             print(f"Error running task: {e}")

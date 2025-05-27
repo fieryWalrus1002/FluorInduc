@@ -4,7 +4,24 @@
     <title>Flask Async Controller</title>
     <script>
         async function startTask() {
-            const response = await fetch('/start_task', { method: 'POST' });
+    const actinicLedIntensity = document.getElementById("actinic_led_intensity").value ? document.getElementById("actinic_led_intensity").value : 50; // Default to 50 if not present
+    const measurementLedIntensity = document.getElementById("measurement_led_intensity") ? document.getElementById("measurement_led_intensity").value : 0; // Default to 0 if not present
+    const recordingLength = document.getElementById("recording_length").value ? document.getElementById("recording_length").value : 10; // Default to 10 if not present
+    const shutterState = document.getElementById("shutter_state") ? document.getElementById("shutter_state").checked : false; // Default to false if not present
+
+            const response = await fetch('/start_task', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    actinic_led_intensity: parseInt(actinicLedIntensity),
+                    measurement_led_intensity: parseInt(measurementLedIntensity),
+                    recording_length: parseInt(recordingLength),
+                    shutter_state: shutterState
+                })
+            });
+
             const data = await response.json();
             alert(data.status);
             updateStatus();
@@ -30,6 +47,23 @@
 <body>
     <h1>Flask Async Controller</h1>
     <p id="status">Status: Unknown</p>
+
+    <label for="actinic_led_intensity">Actinic LED Intensity (0-100%):</label>
+    <input type="number" id="actinic_led_intensity" value="50" min="0" max="100">
+    <br><br>
+
+    <label for="measurement_led_intensity">Measurement LED Intensity (0-100%):</label>
+    <input type="number" id="measurement_led_intensity" value="0" min="0" max="100">
+    <br><br>
+
+    <label for="recording_length">Recording Length (seconds):</label>
+    <input type="number" id="recording_length" value="10" min="1">
+    <br><br>
+
+    <label for="shutter_state">Shutter State:</label>
+    <input type="checkbox" id="shutter_state">
+    <br><br>
+
     <button onclick="startTask()">Start Task</button>
     <button onclick="cancelTask()">Cancel Task</button>
 </body>
