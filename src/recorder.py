@@ -1,6 +1,8 @@
 from ctypes import *
 import time
 from src import dwfconstants
+import numpy as np
+
 
 class Recorder:
     def __init__(self, controller):
@@ -10,6 +12,30 @@ class Recorder:
         """
         self.dwf = controller.dwf  # Reference to the DWF library
         self.hdwf = controller.hdwf  # Reference to the device handle
+
+    def wait_for_signal_threshold(self, channel, hzAcq, threshold=0.0, window_ms=50):
+        """
+        Polls until the average signal is above a threshold for a brief window.
+        """
+        num_samples = int(hzAcq * window_ms / 1000.0)
+        buffer = (c_double * num_samples)()
+
+        print("Waiting for signal to exceed threshold...")
+
+        while True:
+            self.dwf.FDwfAnalogInStatus(self.hdwf, c_int(1), byref(c_byte()))
+            self.dwf.FDwfAnalogInStatusData(
+                self.hdwf, c_int(channel), buffer, c_int(num_samples)
+            )
+
+            # Convert to Python list and compute mean
+            avg = np.mean(buffer)
+            if abs(avg) > threshold:
+                print(f"Signal exceeded threshold: {avg:.4f}")
+                break
+            time.sleep(0.01)  # Avoid burning CPU
+
+        print(f"Signal threshold exceeded ({avg} > {threshold}), starting acquisition.")
 
     def record(self, channel, n_samples, hz_acq=1000000, range=2):
         """ instead of record_and_save, this function is used to record the signal from the specified channel 
@@ -36,7 +62,7 @@ class Recorder:
         # print out the acquisition frequency
         self.dwf.FDwfAnalogInFrequencyGet(self.hdwf, byref(hzAcq))
         print(f"Acquisition frequency: {hzAcq.value} Hz")
-        
+
         # print out the number of samples
         print(f"Number of samples: {n_samples}")
 
@@ -47,13 +73,14 @@ class Recorder:
             self.hdwf, c_int(channel), byref(channel_range)
         )
 
-        # Wait at least 2 seconds for the offset to stabilize
-        time.sleep(0.5)
+        # Wait for singal to exceed threshold before starting acquisition
+        # self.wait_for_signal_threshold(channel, hzAcq.value)
         self.dwf.FDwfAnalogInConfigure(self.hdwf, c_int(0), c_int(1))
 
         cSamples = 0
 
         while cSamples < n_samples:
+
             self.dwf.FDwfAnalogInStatus(self.hdwf, c_int(1), byref(sts))
             if cSamples == 0 and (
                 sts == dwfconstants.DwfStateConfig
@@ -61,7 +88,9 @@ class Recorder:
                 or sts == dwfconstants.DwfStateArmed
             ):
                 # Acquisition not yet started.
+                time.sleep(1.0)
                 continue
+
 
             self.dwf.FDwfAnalogInStatusRecord(
                 self.hdwf, byref(cAvailable), byref(cLost), byref(cCorrupted)
@@ -88,7 +117,7 @@ class Recorder:
             )  # Get channel data
 
             cSamples += cAvailable.value
-            
+
         return rgdSamples[:cSamples], cSamples, fLost, fCorrupted
 
     def record_and_save(self, channel, n_samples, hz_acq=1000000, filename="record.csv", range=2):
@@ -99,7 +128,7 @@ class Recorder:
         :param hz_acq: Acquisition frequency in Hz.
         :param filename: Name of the CSV file to save the data.
         """
-        
+
         print(f"Recording {n_samples} samples at {hz_acq} Hz from channel {channel}...")
         print(f"Recording range: {range} V")
         rgdSamples, cSamples, fLost, fCorrupted = self.record(
@@ -120,14 +149,14 @@ class Recorder:
         :param filename: Name of the CSV file to save the data.
         """
         with open(filename, "w") as f:
-            f.write("Time (s),Value\n")
+            f.write("time,signal\n")
             for i, value in enumerate(rgdSamples):
                 time_s = i * (1.0 / hz_acq)
                 f.write(f"{time_s},{value}\n")
 
         # # Save the data to a CSV file
         # with open(filename, "w") as f:
-        #     f.write("Time (s),Value\n")  # Add a header for clarity
+        #     f.write("time,signal\n")  # Add a header for clarity
 
         #     for i, value in enumerate(rgdSamples):
         #         time_ms = i * time_step  # Calculate the time for each sample

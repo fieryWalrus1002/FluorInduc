@@ -10,13 +10,16 @@ def test_record(channel, n_samples = 1000000, hz_acq = 1000000, filename="record
     Test the recording functionality of the device.
     """
     controller = IOController()
-    # Start recording
+    # # Start recording
     try:
+        controller.toggle_shutter(False)  # Ensure shutter is closed before recording
+        controller.toggle_measure_led(True)  # Turn on the measurement LED
         controller.record_and_save(channel, n_samples, hz_acq, filename)
-
-    # Cleanup after recording
+    except Exception as e:
+        print(f"An error occurred during recording: {e}")
     finally:
         controller.cleanup()
+        print(f"Recording completed. Data saved to {filename}")
 
 def test_io():
     """
@@ -48,7 +51,7 @@ def test_io():
     controller.cleanup()
 
 
-def plot_data(filename="record.csv", output_img_filename="record.png"):
+def plot_data(filename="record.csv", output_img_filename="record.png", output_img_dir="img"):
     """
     Plot the data from the CSV file.
     """
@@ -58,14 +61,14 @@ def plot_data(filename="record.csv", output_img_filename="record.png"):
     # Read the CSV file
     data = pd.read_csv(filename)
 
-    # "Value" is 0-2V, representing 0-500nA
+    # "signal" is 0-2V, representing 0-500nA
     # Convert to nA
     # 2V = 500nA, so each step is 2V / 500nA = 4mV/nA
 
-    data["nA"] = data["Value"] * 500 / 2  # Convert to nA
+    data["nA"] = data["signal"] * 500 / 2  # Convert to nA
 
-    # Plot the data Time (s),Sample Value
-    plt.plot(data["Time (s)"], data["nA"])
+    # Plot the data time,Sample signal
+    plt.plot(data["time"], data["nA"])
 
     mean_val = data["nA"].mean()
     std_val = data["nA"].std()
@@ -76,23 +79,15 @@ def plot_data(filename="record.csv", output_img_filename="record.png"):
 
     # y axis in mV, from 0 to 2V
     plt.ylim(0, 500)
-    plt.xlabel("Time (s)")
+    plt.xlabel("time")
     plt.ylabel("value")
     plt.title("Analog Input Data")
     plt.grid()
-    plt.savefig(f"val_{round(mean_val, 0)}_{output_img_filename}", dpi=300)
+    plt.savefig(f"{output_img_dir}/val_{round(mean_val, 0)}_{output_img_filename}", dpi=300)
     plt.show()
 
 if __name__ == "__main__":
     test_name = "pm100d_46"
-    test_record(channel=0, n_samples=100000, hz_acq=100000, filename=f"{test_name}.csv")
-    plot_data(f"{test_name}.csv", output_img_filename=f"{test_name}.png")
 
-    # voltage = 2 / full_scale_range_value * value  # Convert to voltage
-    
-
-    
-    
-    # max V is 2V, and the full scale range value is 500nA
-    # So each step is 2V / 500nA = 4mV/nA
-    # print(f"Voltage: {voltage} V")
+    test_record(channel=0, n_samples=100000, hz_acq=100000, filename=f"data/{test_name}.csv")
+    plot_data(f"data/{test_name}.csv", output_img_filename=f"{test_name}.png")

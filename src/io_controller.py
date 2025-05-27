@@ -3,7 +3,7 @@ from src import dwfconstants
 import time
 import sys
 from src.recorder import Recorder
-
+from src.experiment_config import ExperimentConfig
 import threading
 
 # Uniblitz Model VMM-D1 shutter controller
@@ -14,7 +14,24 @@ import threading
 class IOController:
     def __init__(self):
         self._stop_event = threading.Event()
-        self.hwdf = None # device handle, set during open_device
+        self.hwdf = None # self.dwfdevice handle, set during open_device
+        self.dwf = None  # DWF library handle, set during open_device
+        # Initialize system clock and pins
+        self.hzSys = c_double()
+        self.pin_measure_led = 0 # not usesd, swapped to analog out w2
+        self.act_analog_out = 0 # analog out w1
+        self.meas_analog_out = 1 # analog out w2
+        self.pin_gate = 2
+        self.pin_trigger = 3
+
+        self.pin_mask = 0xFF  # Set all pins to output (0b11111111)
+        self.pin_state = 0x00  # Initialize pin state to all low (0b00000000)
+        self.output_mask = 0xFF  # Set all pins to output (0b11111111)
+
+        # the channel we measure the signal from the analog out
+        self.signal_channel = 0
+
+        # self.open_device()  # Automatically open the device on initialization
 
     def open_device(self):
         if self.hwdf:
@@ -28,6 +45,9 @@ class IOController:
             self.dwf = cdll.LoadLibrary("/Library/Frameworks/dwf.framework/dwf")
         else:
             self.dwf = cdll.LoadLibrary("libdwf.so")
+
+        if self.dwf == None:
+            raise RuntimeError("Failed to load DWF library. Ensure it is installed correctly.")
 
         version = create_string_buffer(16)
         self.dwf.FDwfGetVersion(version)
@@ -45,20 +65,6 @@ class IOController:
             print(str(szerr.value))
             self.hdwf = None
             raise RuntimeError("Failed to open device")
-
-        # Initialize system clock and pins
-        self.hzSys = c_double()
-        self.pin_measure_led = 0
-        self.act_analog_out = 0
-        self.pin_gate = 2
-        self.pin_trigger = 3
-
-        self.pin_mask = 0xFF  # Set all pins to output (0b11111111)
-        self.pin_state = 0x00  # Initialize pin state to all low (0b00000000)
-        self.output_mask = 0xFF  # Set all pins to output (0b11111111)
-
-        # the channel we measure the signal from the analog out
-        self.signal_channel = 0
 
         # set up the clock frequency
         self.dwf.FDwfDigitalOutInternalClockInfo(self.hdwf, byref(self.hzSys))
@@ -80,6 +86,8 @@ class IOController:
             print("Device closed.")
 
             self._stop_event.clear()  # Clear the stop event to allow for future tasks
+        else:
+            print("Device is not open. Nothing to close.")
 
     def print_io_status(self):
         """
@@ -206,10 +214,51 @@ class IOController:
 
     def run_task(
         self,
+        cfg: ExperimentConfig
+        ):
+        self.recording_task(cfg)
+        
+
+    def recording_task(
+        self,
+        cfg: ExperimentConfig = ExperimentConfig(),
+    ):
+        """Perform a task with periodic checks for cancellation."""
+
+        print(cfg)
+
+        act_voltage = self.get_voltage_from_intensity(cfg.actinic_led_intensity)
+        meas_voltage = self.get_voltage_from_intensity(cfg.measurement_led_intensity)
+        channel = self.signal_channel  # Use the signal channel for recording
+        n_samples = (cfg.recording_length + 1) * cfg.recording_hz
+
+        self.open_device()
+        self._stop_event.clear()  # Ensure the stop event is reset
+        print("IOController: Task started.")
+
+        # turn on the measuring LED and the actinic LED
+        # self.toggle_measure_led(True if meas_voltage > 0 else False)
+        self.set_led_with_analog_voltage(self.meas_analog_out, meas_voltage)
+        self.set_led_with_analog_voltage(self.act_analog_out, act_voltage)
+        self.toggle_shutter(cfg.shutter_state)
+
+        self.record_and_save(
+            channel, n_samples, hz_acq=cfg.recording_hz, filename=cfg.filename
+        )
+
+        self.toggle_shutter(False)
+
+        print("IOController: Task completed.")
+        self.close_device()
+        return "Task Completed"
+
+    def old_run_task(
+        self,
         actinic_led_intensity=50,
         measurement_led_intensity=50,
         recording_length=10,
         shutter_state=False,
+        filename="record.csv",
     ):
         """Perform a task with periodic checks for cancellation."""
 
@@ -217,7 +266,9 @@ class IOController:
         meas_voltage = self.get_voltage_from_intensity(measurement_led_intensity)
         print(f"IOController: Setting actinic LED to {act_voltage}V")
         print(f"IOController: Setting measuring LED intensity to {meas_voltage}V")
-        print(f"IOController: Starting task with recording length of {recording_length} seconds.") 
+        print(
+            f"IOController: Starting task with recording length of {recording_length} seconds."
+        )
         print(f"IOController: Setting shutter state to {shutter_state}")
 
         self.open_device()
@@ -232,8 +283,9 @@ class IOController:
                 return "Task Canceled"
 
             print(f"IOController: Running step {i + 1}/10...")
-            self.toggle_measure_led(True if meas_voltage > 0 else False)
 
+            self.set_led_with_analog_voltage(self.meas_analog_out, meas_voltage)
+            
             if i % 2 == 0:
                 self.set_led_with_analog_voltage(self.act_analog_out, act_voltage)
             else:

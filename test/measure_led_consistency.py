@@ -10,7 +10,7 @@ import random
 
 def convert_voltage_to_current(voltage, fullscale_range_value):
     """ Convert voltage to current using the full scale range value """
-    # "Value" is 0-2V, representing 0-500nA
+    # "signal" is 0-2V, representing 0-500nA
     # Convert to {current_unit}
     # 2V = 500nA, so each step is 2V / 500nA = 4mV/{current_unit}
     return voltage * fullscale_range_value / 2
@@ -65,7 +65,7 @@ if __name__ == "__main__":
 
             # process the data
             data = pd.read_csv(filename)
-            data[f"Current_{current_unit}"] = convert_voltage_to_current(data["Value"], fullscale_range_value)
+            data[f"Current_{current_unit}"] = convert_voltage_to_current(data["signal"], fullscale_range_value)
             data["deltaCurrent"] = data[f"Current_{current_unit}"] / data[f"Current_{current_unit}"][0:1000].mean()
             
             # data["deltaCurrent"] = data[f"Current_{current_unit}"].diff().fillna(0)
@@ -95,15 +95,15 @@ if __name__ == "__main__":
     df = pd.read_csv(export_filename)
     print(f"Data loaded from {export_filename}")
     
-    # plot the Time (s) vs Current (uA) for each voltage
+    # plot the time vs Current (uA) for each voltage
     plt.figure(figsize=(10, 6))
     for voltage in voltage_ladder:
         plt.plot(
-            df[df["Voltage"] == voltage]["Time (s)"],
+            df[df["Voltage"] == voltage]["time"],
             df[df["Voltage"] == voltage][f"Current_{current_unit}"],
             label=f"{voltage} V",
         )
-    plt.xlabel("Time (s)")
+    plt.xlabel("time")
     plt.ylabel(f"Current ({current_unit})")
     plt.title("Current vs Time for different voltages")
     plt.legend()
@@ -117,11 +117,11 @@ if __name__ == "__main__":
     plt.figure(figsize=(10, 6))
     for voltage in voltage_ladder:
         plt.plot(
-            df[df["Voltage"] == voltage]["Time (s)"],
+            df[df["Voltage"] == voltage]["time"],
             df[df["Voltage"] == voltage]["deltaCurrent"],
             label=f"{voltage} V",
         )
-    plt.xlabel("Time (s)")
+    plt.xlabel("time")
     plt.ylabel(f"Delta Current ({current_unit})")
     plt.title("Delta Current vs Time for different voltages")
     plt.legend()
