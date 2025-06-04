@@ -3,14 +3,14 @@ import os
 import threading
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
-from src.io_controller import IOController
+from src.web_api import WebApiController
 from src.experiment_config import ExperimentConfig
 from flask import send_from_directory
 import csv
 
 
 app = Flask(__name__)
-controller = IOController()
+controller = WebApiController()  # Initialize the WebApiController
 task_thread = None
 app.config["DATA_DIR"] = os.path.join(os.path.dirname(__file__), "data")
 
