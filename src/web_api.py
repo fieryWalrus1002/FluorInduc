@@ -12,22 +12,27 @@ import threading
 
 class WebApiController:
     def __init__(self):
-        self._stop_event = threading.Event()
         self.io = IOController()  # Initialize the IOController
 
     def run_task(self, cfg: ExperimentConfig):
-        self.io.open_device()
-        runner = ProtocolRunner(self.io, Recorder(self.io))
-        runner.run_protocol(cfg)
-    
+        try:
+            self.io.open_device()
+            runner = ProtocolRunner(self.io, Recorder(self.io))
+            result = runner.run_protocol(cfg)
+            self.cleanup()
+            return result
+        except Exception as e:
+            self.cleanup()
+            return f"An error occurred: {str(e)}"
+
     def cancel_task(self):
         """Signal the task to stop."""
-        print("IOController: Cancellation requested.")
-        self._stop_event.set()
+        self.io._stop_event.set()
 
     def cleanup(self):
         """Cleanup and release the device."""
-        self.io.close_device()
+        self.io.cleanup()
+        print("Cleanup complete. Device released.")
 
 
 

@@ -2,13 +2,24 @@
 let lastStatus = "";
 
 async function startTask() {
+    const actinic = parseInt(document.getElementById("actinic_led_intensity").value || 50);
+    const measurement = parseInt(document.getElementById("measurement_led_intensity").value || 50);
+    const recordingHz = parseInt(document.getElementById("recording_hz").value || 1000);
+    const aredDuration = parseFloat(document.getElementById("ared_duration_s").value || 3.0);
+    const waitAfterAred = parseFloat(document.getElementById("wait_after_ared_s").value || 0.002);
+    const agreenDelay = parseFloat(document.getElementById("agreen_delay_s").value || 0.002);
+    const agreenDuration = parseFloat(document.getElementById("agreen_duration_s").value || 2.0);
+    const filename = document.getElementById("filename").value || "record.csv";
+
     const payload = {
-        actinic_led_intensity: parseInt(document.getElementById("actinic_led_intensity").value || 50),
-        measurement_led_intensity: parseInt(document.getElementById("measurement_led_intensity").value || 0),
-        recording_length: parseInt(document.getElementById("recording_length").value || 10),
-        shutter_state: document.getElementById("shutter_state").checked,
-        filename: document.getElementById("filename").value || "record.csv",
-        recording_hz: parseInt(document.getElementById("recording_hz").value || 1000)
+        actinic_led_intensity: actinic,
+        measurement_led_intensity: measurement,
+        recording_hz: recordingHz,
+        ared_duration_s: aredDuration,
+        wait_after_ared_s: waitAfterAred,
+        agreen_delay_s: agreenDelay,
+        agreen_duration_s: agreenDuration,
+        filename: filename
     };
 
     const response = await fetch('/start_task', {
@@ -22,6 +33,7 @@ async function startTask() {
     updateStatus();
 }
 
+
 async function cancelTask() {
     const response = await fetch('/cancel_task', { method: 'POST' });
     const data = await response.json();
@@ -29,11 +41,12 @@ async function cancelTask() {
     updateStatus();
 }
 
-// async function updateStatus() {
-//     const response = await fetch('/device_status');
-//     const data = await response.json();
-//     document.getElementById('status').innerText = "Status: " + data.status;
-// }
+async function resetDevice() {
+    const response = await fetch('/reset_device', { method: 'POST' });
+    const data = await response.json();
+    alert(data.status);
+    updateStatus();
+}
 
 async function updateStatus() {
     try {
@@ -42,6 +55,10 @@ async function updateStatus() {
         const currentStatus = data.status;
 
         document.getElementById('status').innerText = "Status: " + currentStatus;
+
+        if (data.last_result && currentStatus === "Idle") {
+            document.getElementById('status').innerText += " — " + data.last_result;
+        }
 
         if (lastStatus === "Running" && currentStatus === "Idle") {
             console.log("Task finished, refreshing file list...");
@@ -134,4 +151,11 @@ async function deleteSelectedFile() {
         alert(`Error: ${result.error}`);
     }
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+      new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+  });
 

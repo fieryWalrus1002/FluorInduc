@@ -31,16 +31,11 @@
 
             <div class="mb-3">
                 <label for="measurement_led_intensity">Measurement LED Intensity (0-100%)</label>
-                <input type="number" class="form-control" id="measurement_led_intensity" value="0" min="0" max="100">
+                <input type="number" class="form-control" id="measurement_led_intensity" value="50" min="0" max="100">
             </div>
 
             <div class="mb-3">
-                <label for="recording_length">Recording Length (seconds)</label>
-                <input type="number" class="form-control" id="recording_length" value="10" min="1">
-            </div>
-
-            <div class="mb-3">
-                <label for="recording_hz">Recording Hz (cycles/second)</label>
+                <label for="recording_hz">Recording Hz (data points/second)</label>
                 <input type="number" class="form-control" id="recording_hz" value="1000" min="1" max="100000" step="1">
             </div>
 
@@ -48,17 +43,30 @@
                 <label for="filename">Filename</label>
                 <input type="text" class="form-control" id="filename" value="record.csv" placeholder="record.csv" pattern="[a-zA-Z0-9_\-]+\.csv" title="Only alphanumeric characters, underscores, and hyphens are allowed. Must end with .csv">
             </div>
-
-            <div class="form-check mb-3">
-                <input type="checkbox" class="form-check-input" id="shutter_state">
-                <label class="form-check-label" for="shutter_state">Shutter Open?</label>
+        
+            <div class="mb-3">
+                <label for="ared_duration_s">Ared Duration (seconds)</label>
+                <input type="number" class="form-control" id="ared_duration_s" value="2.0" min="0" step="0.001">
             </div>
 
-            
-            
+            <div class="mb-3">
+                <label for="wait_after_ared_s">Wait After Ared (seconds)</label>
+                <input type="number" class="form-control" id="wait_after_ared_s" value="0.002" min="0" step="0.001">
+            </div>
 
-            <button class="btn btn-success" onclick="startTask()">Start Task</button>
-            <button class="btn btn-danger" onclick="cancelTask()">Cancel Task</button>
+            <div class="mb-3">
+                <label for="agreen_delay_s">Recording delay before Agreen (seconds)</label>
+                <input type="number" class="form-control" id="agreen_delay_s" value="0.002" min="0" step="0.001">
+            </div>
+
+            <div class="mb-3">
+                <label for="agreen_duration_s">Agreen Duration (seconds)</label>
+                <input type="number" class="form-control" id="agreen_duration_s" value="2.0" min="0" step="0.001">
+            </div>
+
+            <button class="btn btn-success" onclick="startTask()" data-bs-toggle="tooltip" title="Start a recording task, given the current settings">Start Task</button>
+            <button class="btn btn-danger" onclick="cancelTask()" data-bs-toggle="tooltip" title="Stop the current task">Cancel Task</button>
+            <button class="btn btn-secondary" onclick="resetDevice()" data-bs-toggle="tooltip" title="Reset the device, including all settings and states">Reset Device</button>
         </div>
 
         <!-- Tab 2: Data Viewer -->

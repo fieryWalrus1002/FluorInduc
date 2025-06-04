@@ -1,76 +1,96 @@
 from src.io_controller import IOController
 from src.recorder import Recorder
 from src.experiment_config import ExperimentConfig
+import time
+
 
 class ProtocolRunner:
     def __init__(self, io: IOController, recorder: Recorder):
         self.io = io
         self.recorder = recorder
 
+    @staticmethod
+    def calculate_sample_number_for_action(action_time, hz_acq=1000000):
+        """
+        Calculate the sample number for a given action time based on the acquisition frequency.
+        :param action_time: Time in seconds when the action should be executed.
+        :param hz_acq: Acquisition frequency in Hz.
+        :return: Sample number corresponding to the action time.
+        """
+        return int(action_time * hz_acq)
+
     def run_protocol(self, cfg: ExperimentConfig):
-        # logic from old run_protocol(), adapted to cleanly call io.set_led_with_analog_voltage(), etc.
+        """
+            Runs the revised LED + shutter + recording protocol with specified timing.
+            All durations are in milliseconds.
+            
+            The protocol steps are as follows: 
+            1	Pre-set intensity of Mgreen and Ared without switching them on.
+            2	Shutter close (if it is not closed already)
+            3	Ared on for X ms (range 1 to 3,000 ms)
+            4	A red off
+            5	Variable wait time (range 1 to 10,000 ms)
+            6	Open shutter
+            7	< turn on recording>
+            8	Wait 2 ms.
+            9	Agreen on for X ms (from 100 to 10,000 ms) <- still recording
+            10	<turn off recording>
+            11	Close shutter
+            12	Turn off Agreen
+        """
+
+        # step 1: pre set the parameters for the recording and voltages
         self.io.open_device()
-        self.io.set_led_voltage(self.io.act_led_pin, cfg.actinic_led_intensity)
-        self.io.set_led_voltage(self.io.meas_led_pin, cfg.measurement_led_intensity)
 
-    # def run_protocol(self, ExperimentConfig: ExperimentConfig):
-    #     """
-    #     Runs the revised LED + shutter + recording protocol with specified timing.
-    #     All durations are in milliseconds.
-    #     """
-    #     # Convert to seconds for timing logic
-    #     ared_duration = ared_duration_ms / 1000.0
-    #     wait_after_ared = wait_after_ared_ms / 1000.0
-    #     agreen_duration = agreen_duration_ms / 1000.0
+        green_trigger_point = self.calculate_sample_number_for_action(cfg.agreen_delay_s, cfg.recording_hz)
+        print(f"Green trigger point (sample number): {green_trigger_point}")
+        print(f"Recording length in samples: {cfg.recording_length_s * cfg.recording_hz}")
 
-    #     # Set intensities — these voltages can be adjusted per your calibration
-    #     v_ared = self.get_voltage_from_intensity(80)
-    #     v_agreen = controller.get_voltage_from_intensity(60)
-    #     controller.open_device()
 
-    #     print("[Protocol] Step 1: Set Mgreen and Ared intensities (no output)")
-    #     controller.set_led_voltage(0, 0)  # actinic channel off
-    #     controller.set_led_voltage(1, 0)  # measurement channel off
+        # set up the actions that will be taken during recording
+        actions = [
+            (
+                green_trigger_point,  # the acquisition number for Agreen ON
+                lambda: self.io.set_led_intensity("green", cfg.measurement_led_intensity),  # the action to turn Agreen ON
+            ),  # Step 9: Agreen ON
+        ]
 
-    #     print("[Protocol] Step 2: Ensure shutter is closed")
-    #     controller.toggle_shutter(False)
+        n_samples = int(cfg.recording_hz * cfg.recording_length_s)
 
-    #     print("[Protocol] Step 3: Ared ON")
-    #     controller.set_led_voltage(0, v_ared)
-    #     time.sleep(ared_duration)
+        # Set LEDs OFF
+        self.io.set_led_intensity("red", 0)  # actinic channel off
+        self.io.set_led_intensity("green", 0)  # measurement channel off
 
-    #     print("[Protocol] Step 4: Ared OFF")
-    #     controller.set_led_voltage(0, 0)
+        # step 2: Close shutter if not already closed
+        self.io.toggle_shutter(False)
 
-    #     print(f"[Protocol] Step 5: Wait {wait_after_ared_ms} ms")
-    #     time.sleep(wait_after_ared)
+        # step 3: Ared ON for specified duration
+        self.io.set_led_intensity("red", cfg.actinic_led_intensity)
+        time.sleep(cfg.ared_duration_s)
 
-    #     print("[Protocol] Step 6: Open shutter")
-    #     controller.toggle_shutter(True)
+        # step 4: Ared OFF
+        self.io.set_led_intensity("red", 0)
 
-    #     print("[Protocol] Step 7: Start recording + Step 8: Wait 2 ms")
-    #     actions = [
-    #         (
-    #             0.002,
-    #             lambda: controller.set_led_voltage(1, v_agreen),
-    #         ),  # Step 9: Agreen ON
-    #         (
-    #             0.002 + agreen_duration,
-    #             lambda: controller.set_led_voltage(1, 0),
-    #         ),  # Step 12: Agreen OFF
-    #         (
-    #             0.002 + agreen_duration,
-    #             lambda: controller.toggle_shutter(False),
-    #         ),  # Step 11: Close shutter
-    #     ]
+        # step 5: Wait for specified duration
+        time.sleep(cfg.wait_after_ared_s)
 
-    #     total_duration = 0.002 + agreen_duration + 0.01  # Add 10 ms padding
-    #     n_samples = int(hz_acq * total_duration)
+        # step 6: Open shutter
+        self.io.toggle_shutter(True)
 
-    #     samples, count, lost, corrupted = recorder.record(
-    #         channel=0, n_samples=n_samples, hz_acq=hz_acq, range=2, actions=actions
-    #     )
+        # step 7: Start recording
+        # steps 8, 9, 10 are handled in the actions list above, during the recording process
+        samples, count, lost, corrupted = self.recorder.record(
+            channel=0, n_samples=n_samples, hz_acq=cfg.recording_hz, range=cfg.channel_range, actions=actions
+        )
 
-    #     print("[Protocol] Step 10: Recording completed.")
-    #     controller.close_device()
-    #     return samples, count, lost, corrupted
+        # step 11: Close shutter
+        self.io.toggle_shutter(False)
+
+        # step 12: Turn off Agreen
+        self.io.set_led_intensity("green", 0)
+
+        self.recorder.save_data(samples, cfg.recording_hz, cfg.filename)
+
+        self.io.close_device()
+        
+        return f"Protocol completed successfully, saving data to CSV: {cfg.filename}"

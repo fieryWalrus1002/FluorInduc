@@ -31,12 +31,12 @@ Recording:
 class IOController:
     def __init__(self):
         self._stop_event = threading.Event()
-        self.hwdf = None # self.dwfdevice handle, set during open_device
+        self.hdwf = None # handle for the self.dwf library, set during open_device
         self.dwf = None  # DWF library handle, set during open_device
         # Initialize system clock and pins
         self.hzSys = c_double()
-        self.act_led_pin = 0 # analog out w1
-        self.meas_led_pin = 1 # analog out w2
+        # self.act_led_pin = 0 # analog out w1
+        # self.meas_led_pin = 1 # analog out w2
         self.pin_gate = 2
         self.pin_trigger = 3
 
@@ -47,14 +47,26 @@ class IOController:
         # the channel we measure the signal from the analog out
         self.signal_channel = 0
 
-        # self.open_device()  # Automatically open the device on initialization
+        # set the min and max voltage for the two LEDs
+        self.leds = {
+                    "red": {"pin": 0, "min": 0.0, "max": 5.0},
+                    "green": {"pin": 1, "min": 1.0, "max": 5.0},
+        }
 
-    @staticmethod
-    def intensity_to_voltage(intensity: int) -> float:
-        return 5.0 * max(0, min(100, intensity)) / 100.0
+    def intensity_to_voltage(self, led: str, intensity: int = 50) -> float:
+        min = self.leds[led].get("min", 0.0)
+        max = self.leds[led].get("max", 5.0)
+        if not (0 <= intensity <= 100):
+            raise ValueError("Intensity must be between 0 and 100.")
+        
+        if intensity <= 0:
+            return 0.0 # return 0V for 0% intensity
+        
+        voltage = min + (max - min) * (intensity / 100.0)
+        return voltage
 
     def open_device(self):
-        if self.hwdf:
+        if self.hdwf:
             print("Device already opened.")
             return
 
@@ -151,6 +163,25 @@ class IOController:
             self.set_pin(self.pin_trigger, 1)
             self.set_pin(self.pin_gate, 0)
 
+    def set_led_intensity(self, led: str, intensity):
+        """
+        Set the intensity of a specific LED by converting the intensity percentage to voltage.
+        Parameters:
+        - led_number: A string to represent the LED ("red" or "green").
+        - intensity: The intensity percentage (0-100).
+        Raises:
+        - ValueError: If the LED number is not between 0 and 5, or if the intensity is not between 0 and 100.
+        - TypeError: If the led_number is not an integer.
+        """
+        if not isinstance(led, str):
+            raise TypeError("LED number must be a string.")
+
+        if led not in self.leds:
+            raise ValueError("Invalid LED specified.")  # Only "red" and "green" are valid keys
+
+        voltage = self.intensity_to_voltage(led, intensity)
+        self.set_led_voltage(self.leds[led]["pin"], voltage)
+
     def set_led_voltage(self, led_number, value):
         """
         Set the analog output voltage for a specific LED.
@@ -163,8 +194,11 @@ class IOController:
         """
 
         led_int = int(led_number)
-        if led_int < 0 or led_int > 5:
-            raise ValueError("LED number must be between 0 and 5.")
+        if led_int < 0 or led_int > 1:
+            raise ValueError("LED number must be between 0 and 1.")
+
+        print(f"Setting LED {led_int} voltage to {value} V")
+
 
         # Set the analog output to the modulation value
         self.dwf.FDwfAnalogOutNodeEnableSet(
@@ -202,57 +236,6 @@ class IOController:
         self.dwf.FDwfAnalogOutRepeatSet(self.hdwf, led_int, c_int(1))  # repeat once
 
         self.dwf.FDwfAnalogOutConfigure(self.hdwf, led_int, c_bool(True))
-
-    # Should this take a Recorder instance as an argument? It would get it from the ProtocolRunner.
-    # and do we need the various parameters like hz_acq, n_samples, etc.?
-    # or can we just send in the ExperimentConfig object?
-    def record_and_save(
-        self, channel, n_samples, hz_acq=100000, filename="record_1.csv"
-    ):
-        """
-        Test the recording functionality using the Recorder class.
-        
-        Parameters:
-        - channel: The channel to record from.
-        - n_samples: The number of samples to record.
-        - hz_acq: The acquisition frequency in Hz.
-        - filename: The name of the file to save the recorded data.
-        """
-        recorder = Recorder(self)  # Pass the IOController instance to the Recorder
-
-        recorder.record_and_save(channel, n_samples, hz_acq, filename)
-
-    # def recording_task(
-    #     self,
-    #     cfg: ExperimentConfig = ExperimentConfig(),
-    # ):
-    #     """Perform a task with periodic checks for cancellation."""
-
-    #     print(cfg)
-
-    #     act_voltage = self.intensity_to_voltage(cfg.actinic_led_intensity)
-    #     meas_voltage = self.intensity_to_voltage(cfg.measurement_led_intensity)
-    #     channel = self.signal_channel  # Use the signal channel for recording
-    #     n_samples = (cfg.recording_length + 1) * cfg.recording_hz
-
-    #     self.open_device()
-    #     self._stop_event.clear()  # Ensure the stop event is reset
-    #     print("IOController: Task started.")
-
-    #     # turn on the measuring LED and the actinic LED
-    #     self.set_led_voltage(self.meas_led_pin, meas_voltage)
-    #     self.set_led_voltage(self.act_led_pin, act_voltage)
-    #     self.toggle_shutter(cfg.shutter_state)
-
-    #     self.record_and_save(
-    #         channel, n_samples, hz_acq=cfg.recording_hz, filename=cfg.filename
-    #     )
-
-    #     self.toggle_shutter(False)
-
-    #     print("IOController: Task completed.")
-    #     self.close_device()
-    #     return "Task Completed"
 
     def cancel_task(self):
         """Signal the task to stop."""

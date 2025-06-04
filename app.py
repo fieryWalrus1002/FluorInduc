@@ -12,6 +12,7 @@ import csv
 app = Flask(__name__)
 controller = WebApiController()  # Initialize the WebApiController
 task_thread = None
+last_result = None
 app.config["DATA_DIR"] = os.path.join(os.path.dirname(__file__), "data")
 
 
@@ -92,12 +93,14 @@ def start_task():
     config.filename = os.path.join(app.config["DATA_DIR"], config.filename)
 
     def run():
+        global last_result
         try:
             result = controller.run_task(config)
-            print(
-                f"Task finished with result: {result}, data saved to {config.filename}"
-            )
+            last_result = result  # Store the result for later use
+            if isinstance(result, str):
+                print(f"Task finished with message: {result}")
         except Exception as e:
+            last_result = f"Error: {str(e)}"
             print(f"Error running task: {e}")
 
     task_thread = threading.Thread(target=run)
@@ -107,64 +110,37 @@ def start_task():
 @app.route('/cancel_task', methods=['POST'])
 def cancel_task():
     global task_thread
+    global last_result
+    """Cancel the currently running task."""
     if not task_thread or not task_thread.is_alive():
         return jsonify({"status": "No running task to cancel."})
 
     controller.cancel_task()
     task_thread.join()  # Wait for the thread to actually terminate
-    return jsonify({"status": "Task canceled."})
+    last_result = "Task canceled."
+    return jsonify({"status": "Task canceled.", "last_result": last_result})
 
 @app.route("/device_status", methods=["GET"])
 def device_status():
     global task_thread
+    global last_result
+    """Check the status of the device and the current task."""
     status = "Running" if task_thread and task_thread.is_alive() else "Idle"
-    return jsonify({"status": status})
+    return jsonify({"status": status, "last_result": last_result})
 
-@app.route("/shutdown", methods=["POST"])
-def shutdown():
-    """Clean up the device and stop the Flask server."""
+@app.route("/reset_device", methods=["POST"])
+def reset_device():
+    """Clean up the device without restarting the Flask server."""
+    global last_result
     try:
         controller.cancel_task()
         controller.cleanup()
-        print("Device cleaned up.")
-
-        return jsonify({"status": "Task canceled, device cleaned up."})
+        last_result = "Device reset."
+        return jsonify({"status": "Task canceled", "last_result": last_result})
     except Exception as e:
-        print(f"Error during shutdown: {e}")
-        return jsonify({"status": "Error during shutdown."}), 500
-
-
-# from flask import Flask, jsonify, request, send_from_directory
-# import os
-# import csv
-
-# app = Flask(__name__)
-# DATA_DIR = "./data"
-
-
-# @app.route("/list_csv_files")
-# def list_csv_files():
-#     files = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv")]
-#     return jsonify(files)
-
-
-# @app.route("/load_csv/<filename>")
-# def load_csv(filename):
-#     filepath = os.path.join(DATA_DIR, filename)
-#     time_data = []
-#     signal_data = []
-#     with open(filepath, newline="") as csvfile:
-#         reader = csv.DictReader(csvfile)
-#         for row in reader:
-#             time_data.append(float(row["time"]))
-#             signal_data.append(float(row["signal"]))
-#     return jsonify({"time": time_data, "signal": signal_data})
-
-
-# @app.route("/download_csv/<filename>")
-# def download_csv(filename):
-#     return send_from_directory(DATA_DIR, filename, as_attachment=True)
-
+        print(f"Error during reset: {e}")
+        last_result = f"Error during reset: {str(e)}"
+        return jsonify({"status": "Error", "last_result": last_result}), 500
 
 if __name__ == '__main__':
     app.run(debug=False)
