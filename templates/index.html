@@ -1,70 +1,98 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Flask Async Controller</title>
-    <script>
-        async function startTask() {
-    const actinicLedIntensity = document.getElementById("actinic_led_intensity").value ? document.getElementById("actinic_led_intensity").value : 50; // Default to 50 if not present
-    const measurementLedIntensity = document.getElementById("measurement_led_intensity") ? document.getElementById("measurement_led_intensity").value : 0; // Default to 0 if not present
-    const recordingLength = document.getElementById("recording_length").value ? document.getElementById("recording_length").value : 10; // Default to 10 if not present
-    const shutterState = document.getElementById("shutter_state") ? document.getElementById("shutter_state").checked : false; // Default to false if not present
-
-            const response = await fetch('/start_task', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    actinic_led_intensity: parseInt(actinicLedIntensity),
-                    measurement_led_intensity: parseInt(measurementLedIntensity),
-                    recording_length: parseInt(recordingLength),
-                    shutter_state: shutterState
-                })
-            });
-
-            const data = await response.json();
-            alert(data.status);
-            updateStatus();
-        }
-
-        async function cancelTask() {
-            const response = await fetch('/cancel_task', { method: 'POST' });
-            const data = await response.json();
-            alert(data.status);
-            updateStatus();
-        }
-
-        async function updateStatus() {
-            const response = await fetch('/device_status');
-            const data = await response.json();
-            document.getElementById('status').innerText = "Status: " + data.status;
-        }
-
-        setInterval(updateStatus, 2000);  // Automatically refresh status every 2 seconds
-        window.onload = updateStatus;
-    </script>
+    <meta charset="UTF-8">
+    <title>Experiment Controller</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
-    <h1>Flask Async Controller</h1>
-    <p id="status">Status: Unknown</p>
+<div class="container mt-4">
+    <h1 class="mb-4">Experiment Controller</h1>
 
-    <label for="actinic_led_intensity">Actinic LED Intensity (0-100%):</label>
-    <input type="number" id="actinic_led_intensity" value="50" min="0" max="100">
-    <br><br>
+    <ul class="nav nav-tabs" id="controlTabs" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-setup" type="button" role="tab">Experiment Setup</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-data" type="button" role="tab">Data Viewer</button>
+        </li>
+    </ul>
 
-    <label for="measurement_led_intensity">Measurement LED Intensity (0-100%):</label>
-    <input type="number" id="measurement_led_intensity" value="0" min="0" max="100">
-    <br><br>
+    <div class="tab-content mt-3">
+        <!-- Tab 1: Experiment Setup -->
+        <div class="tab-pane fade show active" id="tab-setup" role="tabpanel">
+            <p id="status">Status: Unknown</p>
 
-    <label for="recording_length">Recording Length (seconds):</label>
-    <input type="number" id="recording_length" value="10" min="1">
-    <br><br>
+            <div class="mb-3">
+                <label for="actinic_led_intensity">Actinic LED Intensity (0-100%)</label>
+                <input type="number" class="form-control" id="actinic_led_intensity" value="50" min="0" max="100">
+            </div>
 
-    <label for="shutter_state">Shutter State:</label>
-    <input type="checkbox" id="shutter_state">
-    <br><br>
+            <div class="mb-3">
+                <label for="measurement_led_intensity">Measurement LED Intensity (0-100%)</label>
+                <input type="number" class="form-control" id="measurement_led_intensity" value="50" min="0" max="100">
+            </div>
 
-    <button onclick="startTask()">Start Task</button>
-    <button onclick="cancelTask()">Cancel Task</button>
+            <div class="mb-3">
+                <label for="recording_hz">Recording Hz (data points/second)</label>
+                <input type="number" class="form-control" id="recording_hz" value="1000" min="1" max="100000" step="1">
+            </div>
+
+            <div class="mb-3">
+                <label for="filename">Filename</label>
+                <input type="text" class="form-control" id="filename" value="record.csv" placeholder="record.csv" pattern="[a-zA-Z0-9_\-]+\.csv" title="Only alphanumeric characters, underscores, and hyphens are allowed. Must end with .csv">
+            </div>
+        
+            <div class="mb-3">
+                <label for="ared_duration_s">Ared Duration (seconds)</label>
+                <input type="number" class="form-control" id="ared_duration_s" value="2.0" min="0" step="0.001">
+            </div>
+
+            <div class="mb-3">
+                <label for="wait_after_ared_s">Wait After Ared (seconds)</label>
+                <input type="number" class="form-control" id="wait_after_ared_s" value="0.002" min="0" step="0.001">
+            </div>
+
+            <div class="mb-3">
+                <label for="agreen_delay_s">Recording delay before Agreen (seconds)</label>
+                <input type="number" class="form-control" id="agreen_delay_s" value="0.002" min="0" step="0.001">
+            </div>
+
+            <div class="mb-3">
+                <label for="agreen_duration_s">Agreen Duration (seconds)</label>
+                <input type="number" class="form-control" id="agreen_duration_s" value="2.0" min="0" step="0.001">
+            </div>
+
+            <button class="btn btn-success" onclick="startTask()" data-bs-toggle="tooltip" title="Start a recording task, given the current settings">Start Task</button>
+            <button class="btn btn-danger" onclick="cancelTask()" data-bs-toggle="tooltip" title="Stop the current task">Cancel Task</button>
+            <button class="btn btn-secondary" onclick="resetDevice()" data-bs-toggle="tooltip" title="Reset the device, including all settings and states">Reset Device</button>
+        </div>
+
+        <!-- Tab 2: Data Viewer -->
+        <div class="tab-pane fade" id="tab-data" role="tabpanel">
+            
+            <div class="mb-3">
+                <label for="file_select">Select Data File:</label>
+                <select class="form-select" id="file_select">
+                    <!-- Filled by JS -->
+                </select>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button class="btn btn-info" onclick="loadPlot()">Load Selected File</button>
+                <a id="download_link" class="btn btn-primary" href="#" download>Download CSV</a>
+                <button class="btn btn-danger" onclick="deleteSelectedFile()">Delete Selected File</button>
+                <button class="btn btn-secondary" onclick="populateFileList()">Refresh List</button>
+            </div>
+
+            <div id="plot" style="height: 500px;"></div>
+
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
