@@ -12,11 +12,11 @@ def calculate_mean_current(fullscale_range_value, filename="record.csv"):
     """ calculate the mean current from the CSV file and return it """
     data = pd.read_csv(filename)
 
-    # "Value" is 0-2V, representing 0-500nA
+    # "signal" is 0-2V, representing 0-500nA
     # Convert to {current_unit}
     # 2V = 500nA, so each step is 2V / 500nA = 4mV/{current_unit}
     data["Current"] = (
-        data["Value"] * fullscale_range_value / 2
+        data["signal"] * fullscale_range_value / 2
     )  # Convert to {current_unit}
     mean_current = data["Current"].mean()
     std_current = data["Current"].std()

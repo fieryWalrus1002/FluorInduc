@@ -134,7 +134,7 @@ if fCorrupted:
 
 # Open the CSV file and write the time and sample data
 with open("record.csv", "w") as f:
-    f.write("Time (s),Sample Value\n")  # Add a header for clarity
+    f.write("time,Sample signal\n")  # Add a header for clarity
     for i, v in enumerate(rgdSamples):
         time = i * time_step  # Calculate the time for each sample
         f.write(f"{time},{v}\n")

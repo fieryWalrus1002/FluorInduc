@@ -3,21 +3,70 @@ from src import dwfconstants
 import time
 import sys
 from src.recorder import Recorder
-
+from src.experiment_config import ExperimentConfig
 import threading
 
 # Uniblitz Model VMM-D1 shutter controller
 # Unit state:
 # Control mode set to remote
 # Shutter mode set to N.O. (normally open)
+"""
+Device Lifecycle:
+    open_device()  # Load DWF library, open device, set up pins
+    close_device()  # Reset digital output, close device
+    cleanup()  # Close device and clear stop event
+    cancel_task()  # Signal the task to stop
+    
+Hardware I/O:
+    set_pin(pin, value)  # Set a digital output pin to a specific value (0 or 1)
+    toggle_shutter(state)  # Toggle the shutter state (open/close)
+    set_led_voltage(led_number, value)  # Set analog output voltage for a specific LED
+    get_voltage_from_intensity(intensity)  # Convert intensity percentage to voltage
+    print_io_status()  # Print the status of digital I/O pins
+
+Recording:
+    record_and_save(channel, n_samples, hz_acq=100000, filename="record_1.csv")  # Record data and save to file
+"""
 
 class IOController:
     def __init__(self):
         self._stop_event = threading.Event()
-        self.hwdf = None # device handle, set during open_device
+        self.hdwf = None # handle for the self.dwf library, set during open_device
+        self.dwf = None  # DWF library handle, set during open_device
+        # Initialize system clock and pins
+        self.hzSys = c_double()
+        # self.act_led_pin = 0 # analog out w1
+        # self.meas_led_pin = 1 # analog out w2
+        self.pin_gate = 2
+        self.pin_trigger = 3
+
+        self.pin_mask = 0xFF  # Set all pins to output (0b11111111)
+        self.pin_state = 0x00  # Initialize pin state to all low (0b00000000)
+        self.output_mask = 0xFF  # Set all pins to output (0b11111111)
+
+        # the channel we measure the signal from the analog out
+        self.signal_channel = 0
+
+        # set the min and max voltage for the two LEDs
+        self.leds = {
+                    "red": {"pin": 0, "min": 0.0, "max": 5.0},
+                    "green": {"pin": 1, "min": 1.0, "max": 5.0},
+        }
+
+    def intensity_to_voltage(self, led: str, intensity: int = 50) -> float:
+        min = self.leds[led].get("min", 0.0)
+        max = self.leds[led].get("max", 5.0)
+        if not (0 <= intensity <= 100):
+            raise ValueError("Intensity must be between 0 and 100.")
+        
+        if intensity <= 0:
+            return 0.0 # return 0V for 0% intensity
+        
+        voltage = min + (max - min) * (intensity / 100.0)
+        return voltage
 
     def open_device(self):
-        if self.hwdf:
+        if self.hdwf:
             print("Device already opened.")
             return
 
@@ -28,6 +77,9 @@ class IOController:
             self.dwf = cdll.LoadLibrary("/Library/Frameworks/dwf.framework/dwf")
         else:
             self.dwf = cdll.LoadLibrary("libdwf.so")
+
+        if self.dwf == None:
+            raise RuntimeError("Failed to load DWF library. Ensure it is installed correctly.")
 
         version = create_string_buffer(16)
         self.dwf.FDwfGetVersion(version)
@@ -45,20 +97,6 @@ class IOController:
             print(str(szerr.value))
             self.hdwf = None
             raise RuntimeError("Failed to open device")
-
-        # Initialize system clock and pins
-        self.hzSys = c_double()
-        self.pin_measure_led = 0
-        self.act_analog_out = 0
-        self.pin_gate = 2
-        self.pin_trigger = 3
-
-        self.pin_mask = 0xFF  # Set all pins to output (0b11111111)
-        self.pin_state = 0x00  # Initialize pin state to all low (0b00000000)
-        self.output_mask = 0xFF  # Set all pins to output (0b11111111)
-
-        # the channel we measure the signal from the analog out
-        self.signal_channel = 0
 
         # set up the clock frequency
         self.dwf.FDwfDigitalOutInternalClockInfo(self.hdwf, byref(self.hzSys))
@@ -80,6 +118,8 @@ class IOController:
             print("Device closed.")
 
             self._stop_event.clear()  # Clear the stop event to allow for future tasks
+        else:
+            print("Device is not open. Nothing to close.")
 
     def print_io_status(self):
         """
@@ -113,10 +153,7 @@ class IOController:
             self.pin_state &= ~(1 << pin)  # Set the pin low
 
         self.dwf.FDwfDigitalIOOutputSet(self.hdwf, c_int(self.pin_state))
-        time.sleep(0.1)  # Optional short delay for hardware settling
-
-    def toggle_measure_led(self, state):
-        self.set_pin(self.pin_measure_led, state)
+        # time.sleep(0.1)  # Optional short delay for hardware settling
 
     def toggle_shutter(self, state=True):
         if state:
@@ -126,14 +163,42 @@ class IOController:
             self.set_pin(self.pin_trigger, 1)
             self.set_pin(self.pin_gate, 0)
 
-    def set_led_with_analog_voltage(self, led_number, value):
+    def set_led_intensity(self, led: str, intensity):
         """
-        
+        Set the intensity of a specific LED by converting the intensity percentage to voltage.
+        Parameters:
+        - led_number: A string to represent the LED ("red" or "green").
+        - intensity: The intensity percentage (0-100).
+        Raises:
+        - ValueError: If the LED number is not between 0 and 5, or if the intensity is not between 0 and 100.
+        - TypeError: If the led_number is not an integer.
+        """
+        if not isinstance(led, str):
+            raise TypeError("LED number must be a string.")
+
+        if led not in self.leds:
+            raise ValueError("Invalid LED specified.")  # Only "red" and "green" are valid keys
+
+        voltage = self.intensity_to_voltage(led, intensity)
+        self.set_led_voltage(self.leds[led]["pin"], voltage)
+
+    def set_led_voltage(self, led_number, value):
+        """
+        Set the analog output voltage for a specific LED.
+        Parameters:
+        - led_number: The LED number (0-1) for the w1 and w2 pins.
+        - value: The voltage value to set (0-5V).
+        Raises:
+        - ValueError: If the LED number is not between 0 and 5, or if the value is not between 0 and 5.
+        - TypeError: If the led_number is not an integer.
         """
 
         led_int = int(led_number)
-        if led_int < 0 or led_int > 3:
-            raise ValueError("LED number must be between 0 and 3.")
+        if led_int < 0 or led_int > 1:
+            raise ValueError("LED number must be between 0 and 1.")
+
+        print(f"Setting LED {led_int} voltage to {value} V")
+
 
         # Set the analog output to the modulation value
         self.dwf.FDwfAnalogOutNodeEnableSet(
@@ -172,81 +237,6 @@ class IOController:
 
         self.dwf.FDwfAnalogOutConfigure(self.hdwf, led_int, c_bool(True))
 
-    def record_and_save(
-        self, channel, n_samples, hz_acq=100000, filename="record_1.csv"
-    ):
-        """
-        Test the recording functionality using the Recorder class.
-        
-        Parameters:
-        - channel: The channel to record from.
-        - n_samples: The number of samples to record.
-        - hz_acq: The acquisition frequency in Hz.
-        - filename: The name of the file to save the recorded data.
-        """
-        recorder = Recorder(self)  # Pass the IOController instance to the Recorder
-
-        recorder.record_and_save(channel, n_samples, hz_acq, filename)
-
-    def sanitize_intensity(self, intensity):
-        """
-        Ensure the intensity value is within the range of 0 to 100.
-        """
-        if intensity < 0:
-            return 0
-        elif intensity > 100:
-            return 100
-        return intensity
-
-    def get_voltage_from_intensity(self, intensity):
-        """
-        Convert intensity percentage to voltage.
-        """
-        return 5.0 * (self.sanitize_intensity(intensity) / 100.0)
-
-    def run_task(
-        self,
-        actinic_led_intensity=50,
-        measurement_led_intensity=50,
-        recording_length=10,
-        shutter_state=False,
-    ):
-        """Perform a task with periodic checks for cancellation."""
-
-        act_voltage = self.get_voltage_from_intensity(actinic_led_intensity)
-        meas_voltage = self.get_voltage_from_intensity(measurement_led_intensity)
-        print(f"IOController: Setting actinic LED to {act_voltage}V")
-        print(f"IOController: Setting measuring LED intensity to {meas_voltage}V")
-        print(f"IOController: Starting task with recording length of {recording_length} seconds.") 
-        print(f"IOController: Setting shutter state to {shutter_state}")
-
-        self.open_device()
-        self._stop_event.clear()  # Ensure the stop event is reset
-        print("IOController: Task started.")
-
-        for i in range(recording_length):
-
-            if self._stop_event.is_set():
-                print("IOController: Task canceled.")
-                self.close_device()
-                return "Task Canceled"
-
-            print(f"IOController: Running step {i + 1}/10...")
-            self.toggle_measure_led(True if meas_voltage > 0 else False)
-
-            if i % 2 == 0:
-                self.set_led_with_analog_voltage(self.act_analog_out, act_voltage)
-            else:
-                self.set_led_with_analog_voltage(self.act_analog_out, 0.0)
-
-            self.toggle_shutter(shutter_state)
-
-            time.sleep(1)
-
-        print("IOController: Task completed.")
-        self.close_device()
-        return "Task Completed"
-
     def cancel_task(self):
         """Signal the task to stop."""
         print("IOController: Cancellation requested.")
@@ -255,6 +245,7 @@ class IOController:
     def cleanup(self):
         """Cleanup and release the device."""
         self.close_device()
+
 
 if __name__ == "__main__":
     print("Starting controller")

@@ -1,6 +1,8 @@
 from ctypes import *
 import time
 from src import dwfconstants
+import numpy as np
+
 
 class Recorder:
     def __init__(self, controller):
@@ -11,9 +13,17 @@ class Recorder:
         self.dwf = controller.dwf  # Reference to the DWF library
         self.hdwf = controller.hdwf  # Reference to the device handle
 
-    def record(self, channel, n_samples, hz_acq=1000000, range=2):
-        """ instead of record_and_save, this function is used to record the signal from the specified channel 
-        and return it as a tuple of lists (time, value)."""
+    def record(self, channel, n_samples, hz_acq=1000000, range=2, actions=None):
+        """
+        instead of record_and_save, this function is used to record the signal from the specified channel
+        and return it as a tuple of lists (time, value).
+        
+        If there is a list of actions, it will execute them during the recording.
+        :param channel: The analog input channel to record from.
+        :param n_samples: Number of samples to record.
+        :param hz_acq: Acquisition frequency in Hz.
+        :param range: The range for the analog input channel in volts."""
+
         # Declare ctype variables
         sts = c_byte()
         hzAcq = c_double(hz_acq)
@@ -36,7 +46,7 @@ class Recorder:
         # print out the acquisition frequency
         self.dwf.FDwfAnalogInFrequencyGet(self.hdwf, byref(hzAcq))
         print(f"Acquisition frequency: {hzAcq.value} Hz")
-        
+
         # print out the number of samples
         print(f"Number of samples: {n_samples}")
 
@@ -47,39 +57,52 @@ class Recorder:
             self.hdwf, c_int(channel), byref(channel_range)
         )
 
-        # Wait at least 2 seconds for the offset to stabilize
-        time.sleep(0.5)
         self.dwf.FDwfAnalogInConfigure(self.hdwf, c_int(0), c_int(1))
 
         cSamples = 0
-
         while cSamples < n_samples:
+
             self.dwf.FDwfAnalogInStatus(self.hdwf, c_int(1), byref(sts))
             if cSamples == 0 and (
                 sts == dwfconstants.DwfStateConfig
                 or sts == dwfconstants.DwfStatePrefill
                 or sts == dwfconstants.DwfStateArmed
             ):
-                # Acquisition not yet started.
+                # Acquisition not yet started, wait a bit
+                time.sleep(0.5)
                 continue
+
+            # the actions in the list will be executed during the recording
+            if actions is not None:
+                for action in actions:
+                    if cSamples >= action[0]:
+                        print(f"Executing action at sample {cSamples}")
+                        action[1]()
+                        # now pop the action from the list so it does not get executed again
+                        actions.pop(0)
 
             self.dwf.FDwfAnalogInStatusRecord(
                 self.hdwf, byref(cAvailable), byref(cLost), byref(cCorrupted)
             )
 
-            cSamples += cLost.value
+            # adds lost samples to the count, if any
+            cSamples += cLost.value 
 
+            # if there are any lost or corrupted samples, set the flags
             if cLost.value:
                 fLost = 1
             if cCorrupted.value:
                 fCorrupted = 1
 
+            # if no samples are available, continue to the next iteration
             if cAvailable.value == 0:
                 continue
 
-            if cSamples + cAvailable.value > n_samples:
+            # If the number of available samples exceeds the remaining samples to record, limit it
+            if cSamples + cAvailable.value > n_samples: 
                 cAvailable = c_int(n_samples - cSamples)
 
+            # Read the available samples into the rgdSamples array
             self.dwf.FDwfAnalogInStatusData(
                 self.hdwf,
                 c_int(channel),
@@ -87,31 +110,33 @@ class Recorder:
                 cAvailable,
             )  # Get channel data
 
+            # add the number of available samples to the count
             cSamples += cAvailable.value
-            
+
+        print(f"Recorded {cSamples} samples, lost {cLost.value}, corrupted {cCorrupted.value}")
         return rgdSamples[:cSamples], cSamples, fLost, fCorrupted
 
-    def record_and_save(self, channel, n_samples, hz_acq=1000000, filename="record.csv", range=2):
-        """
-        Record the signal from the specified channel and save it to a CSV file.
-        :param channel: The analog input channel to record from.
-        :param n_samples: Number of samples to record.
-        :param hz_acq: Acquisition frequency in Hz.
-        :param filename: Name of the CSV file to save the data.
-        """
-        
-        print(f"Recording {n_samples} samples at {hz_acq} Hz from channel {channel}...")
-        print(f"Recording range: {range} V")
-        rgdSamples, cSamples, fLost, fCorrupted = self.record(
-            channel, n_samples, hz_acq, range
-        )
+    # def record_and_save(self, channel, n_samples, hz_acq=1000000, filename="record.csv", range=2):
+    #     """
+    #     Record the signal from the specified channel and save it to a CSV file.
+    #     :param channel: The analog input channel to record from.
+    #     :param n_samples: Number of samples to record.
+    #     :param hz_acq: Acquisition frequency in Hz.
+    #     :param filename: Name of the CSV file to save the data.
+    #     """
 
-        if fLost:
-            print("Samples were lost! Reduce frequency")
-        if fCorrupted:
-            print("Samples could be corrupted! Reduce frequency")
+    #     print(f"Recording {n_samples} samples at {hz_acq} Hz from channel {channel}...")
+    #     print(f"Recording range: {range} V")
+    #     rgdSamples, cSamples, fLost, fCorrupted = self.record(
+    #         channel, n_samples, hz_acq, range
+    #     )
 
-        self.save_data(rgdSamples, hz_acq, filename)
+    #     if fLost:
+    #         print("Samples were lost! Reduce frequency")
+    #     if fCorrupted:
+    #         print("Samples could be corrupted! Reduce frequency")
+
+    #     self.save_data(rgdSamples, hz_acq, filename)
 
     def save_data(self, rgdSamples, hz_acq, filename="record.csv"):
         """
@@ -120,14 +145,14 @@ class Recorder:
         :param filename: Name of the CSV file to save the data.
         """
         with open(filename, "w") as f:
-            f.write("Time (s),Value\n")
+            f.write("time,signal\n")
             for i, value in enumerate(rgdSamples):
                 time_s = i * (1.0 / hz_acq)
                 f.write(f"{time_s},{value}\n")
 
         # # Save the data to a CSV file
         # with open(filename, "w") as f:
-        #     f.write("Time (s),Value\n")  # Add a header for clarity
+        #     f.write("time,signal\n")  # Add a header for clarity
 
         #     for i, value in enumerate(rgdSamples):
         #         time_ms = i * time_step  # Calculate the time for each sample
