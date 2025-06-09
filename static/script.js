@@ -9,6 +9,7 @@ async function startTask() {
     const waitAfterAred = parseFloat(document.getElementById("wait_after_ared_s").value || 0.002);
     const agreenDelay = parseFloat(document.getElementById("agreen_delay_s").value || 0.002);
     const agreenDuration = parseFloat(document.getElementById("agreen_duration_s").value || 2.0);
+    const channelRange = parseInt(document.getElementById("channel_range").value || 50);
     const filename = document.getElementById("filename").value || "record.csv";
 
     const payload = {
@@ -19,6 +20,7 @@ async function startTask() {
         wait_after_ared_s: waitAfterAred,
         agreen_delay_s: agreenDelay,
         agreen_duration_s: agreenDuration,
+        channel_range: channelRange,
         filename: filename
     };
 
@@ -85,6 +87,9 @@ async function loadPlot() {
     const response = await fetch(`/load_csv/${filename}`);
     const data = await response.json();
 
+    const yMax = Math.max(...data.signal);
+    const yRange = [0, yMax * 1.1];
+
     Plotly.newPlot('plot', [{
         x: data.time,
         y: data.signal,
@@ -94,7 +99,7 @@ async function loadPlot() {
     }], {
         title: filename,
         xaxis: { title: 'time' },
-        yaxis: { title: 'signal' }
+        yaxis: { title: 'signal', range: yRange }
     });
 
     document.getElementById('download_link').href = `/download_csv/${filename}`;

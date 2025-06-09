@@ -13,7 +13,7 @@ class Recorder:
         self.dwf = controller.dwf  # Reference to the DWF library
         self.hdwf = controller.hdwf  # Reference to the device handle
 
-    def record(self, channel, n_samples, hz_acq=1000000, range=2, actions=None):
+    def record(self, channel, n_samples, hz_acq=1000000, channel_range=50, actions=None):
         """
         instead of record_and_save, this function is used to record the signal from the specified channel
         and return it as a tuple of lists (time, value).
@@ -22,7 +22,9 @@ class Recorder:
         :param channel: The analog input channel to record from.
         :param n_samples: Number of samples to record.
         :param hz_acq: Acquisition frequency in Hz.
-        :param range: The range for the analog input channel in volts."""
+        :param channel_range: The range for the analog input channel in volts.
+        :param actions: A list of tuples (sample_number, action) where action is a callable to execute at that sample.
+        """
 
         # Declare ctype variables
         sts = c_byte()
@@ -37,6 +39,7 @@ class Recorder:
 
         # Configure the analog input channel
         self.dwf.FDwfAnalogInChannelEnableSet(self.hdwf, c_int(channel), c_bool(True))
+        self.dwf.FDwfAnalogInChannelRangeSet(self.hdwf, c_int(channel), c_double(channel_range))
         self.dwf.FDwfAnalogInAcquisitionModeSet(self.hdwf, dwfconstants.acqmodeRecord)
         self.dwf.FDwfAnalogInFrequencySet(self.hdwf, hzAcq)
         self.dwf.FDwfAnalogInRecordLengthSet(
@@ -52,10 +55,10 @@ class Recorder:
 
         # set the channel in range
         channel_range = c_double()
-        self.dwf.FDwfAnalogInChannelRangeSet(self.hdwf, c_int(channel), c_int(range))
         self.dwf.FDwfAnalogInChannelRangeGet(
             self.hdwf, c_int(channel), byref(channel_range)
         )
+        print(f"Channel {channel} range: {channel_range.value} V")
 
         self.dwf.FDwfAnalogInConfigure(self.hdwf, c_int(0), c_int(1))
 
@@ -112,6 +115,8 @@ class Recorder:
 
             # add the number of available samples to the count
             cSamples += cAvailable.value
+
+        # self.dwf.FDwfAnalogOutReset(self.hdwf, c_int(channel))
 
         print(f"Recorded {cSamples} samples, lost {cLost.value}, corrupted {cCorrupted.value}")
         return rgdSamples[:cSamples], cSamples, fLost, fCorrupted

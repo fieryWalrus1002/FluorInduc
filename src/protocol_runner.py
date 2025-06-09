@@ -80,7 +80,7 @@ class ProtocolRunner:
         # step 7: Start recording
         # steps 8, 9, 10 are handled in the actions list above, during the recording process
         samples, count, lost, corrupted = self.recorder.record(
-            channel=0, n_samples=n_samples, hz_acq=cfg.recording_hz, range=cfg.channel_range, actions=actions
+            channel=0, n_samples=n_samples, hz_acq=cfg.recording_hz, channel_range=cfg.channel_range, actions=actions
         )
 
         # step 11: Close shutter

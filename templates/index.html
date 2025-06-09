@@ -64,6 +64,14 @@
                 <input type="number" class="form-control" id="agreen_duration_s" value="2.0" min="0" step="0.001">
             </div>
 
+            <div class="mb-3">
+                <label for="channel_range">Channel Input Range (Vpp)</label>
+                <select class="form-select" id="channel_range">
+                    <option value="5">±2.5 V (5 V peak-to-peak)</option>
+                    <option value="50" selected>±25 V (50 V peak-to-peak)</option>
+                </select>
+            </div>
+
             <button class="btn btn-success" onclick="startTask()" data-bs-toggle="tooltip" title="Start a recording task, given the current settings">Start Task</button>
             <button class="btn btn-danger" onclick="cancelTask()" data-bs-toggle="tooltip" title="Stop the current task">Cancel Task</button>
             <button class="btn btn-secondary" onclick="resetDevice()" data-bs-toggle="tooltip" title="Reset the device, including all settings and states">Reset Device</button>

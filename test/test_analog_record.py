@@ -8,7 +8,7 @@ Requires:
 """
 
 from ctypes import *
-from src.dwfconstants import *
+from dwfconstants import *
 import math
 import time
 import sys
