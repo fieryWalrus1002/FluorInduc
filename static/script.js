@@ -87,6 +87,7 @@ async function loadPlot() {
     const response = await fetch(`/load_csv/${filename}`);
     const data = await response.json();
 
+    // Plot signal
     const yMax = Math.max(...data.signal);
     const yRange = [0, yMax * 1.1];
 
@@ -98,18 +99,42 @@ async function loadPlot() {
         name: 'Signal'
     }], {
         title: filename,
-        xaxis: { title: 'time' },
-        yaxis: { title: 'signal', range: yRange }
+        xaxis: { title: 'Time (s)' },
+        yaxis: {
+            title: 'Signal (V)',
+            range: yRange
+        }
     });
 
     document.getElementById('download_link').href = `/download_csv/${filename}`;
+
+    // Load and display metadata
+    await loadMetadata(filename);
 }
 
-setInterval(updateStatus, 2000);
-window.onload = function () {
-    updateStatus();
-    populateFileList();
-};
+
+async function loadMetadata(filename) {
+    const response = await fetch(`/load_metadata/${filename}`);
+    const result = await response.json();
+    const metaElem = document.getElementById("metadata_pretty");
+    console.log("Metadata response:", result);
+    
+    if (!response.ok) {
+        // Server returned 404 or 500
+        metaElem.textContent = `Error loading metadata: ${result.error || 'Unknown error'}`;
+        return;
+    }
+
+    if (result.metadata) {
+        const metadataText = result.metadata
+            //.replace(/,/g, ',\n')  // Add newlines after commas for better readability
+
+        metaElem.textContent = metadataText;
+    } else {
+        // response.ok but no metadata field (possible logic error or empty file)
+        metaElem.textContent = result.error || 'No metadata found for this file.';
+    }
+}
 
 
 function drawBlankPlot() {
@@ -124,11 +149,7 @@ function drawBlankPlot() {
     });
 }
 
-window.onload = function () {
-    updateStatus();
-    populateFileList();
-    drawBlankPlot();  // Draw a blank plot on initial load
-};
+
 
 async function deleteSelectedFile() {
     const filename = document.getElementById("file_select").value;
@@ -157,10 +178,19 @@ async function deleteSelectedFile() {
     }
 }
 
+// Initialize tooltips for Bootstrap
 document.addEventListener('DOMContentLoaded', function () {
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
     tooltipTriggerList.forEach(function (tooltipTriggerEl) {
-      new bootstrap.Tooltip(tooltipTriggerEl)
+        new bootstrap.Tooltip(tooltipTriggerEl)
     })
-  });
+});
+
+setInterval(updateStatus, 2000); // update status every 2 seconds
+
+window.onload = function () {
+    updateStatus();
+    populateFileList();
+    drawBlankPlot();  // Draw a blank plot on initial load
+};
 

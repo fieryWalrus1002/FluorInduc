@@ -46,7 +46,6 @@ class ProtocolRunner:
         print(f"Green trigger point (sample number): {green_trigger_point}")
         print(f"Recording length in samples: {cfg.recording_length_s * cfg.recording_hz}")
 
-
         # set up the actions that will be taken during recording
         actions = [
             (
@@ -91,6 +90,25 @@ class ProtocolRunner:
 
         self.recorder.save_data(samples, cfg.recording_hz, cfg.filename)
 
+        self.save_metadata(cfg)
+
         self.io.close_device()
-        
+
         return f"Protocol completed successfully, saving data to CSV: {cfg.filename}"
+
+    def make_json_filename(self, csv_filename):
+        metadata_filename = csv_filename.replace(".csv", "_metadata.json")
+        return metadata_filename
+
+    def save_metadata(self, cfg: ExperimentConfig):
+        """        Save metadata about the experiment to a file.
+        :param cfg: Experiment configuration containing metadata.
+        """
+        # use the ExperimentConfig's to_json method to get the metadata or maybe ... its
+        # #adataclass so does it have that ability already?
+
+        metadata = cfg.to_dict()
+        metadata_filename = self.make_json_filename(cfg.filename)
+
+        with open(metadata_filename, "w") as f:
+            f.write(cfg.to_json())

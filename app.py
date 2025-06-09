@@ -7,6 +7,7 @@ from src.web_api import WebApiController
 from src.experiment_config import ExperimentConfig
 from flask import send_from_directory
 import csv
+import json
 
 
 app = Flask(__name__)
@@ -68,6 +69,30 @@ def load_csv(filename):
         return jsonify({"error": str(e)}), 500
 
     return jsonify({"time": time_data, "signal": signal_data})
+
+@app.route("/load_metadata/<filename>")
+def load_metadata(filename):
+    """Load metadata and return a prettified human-readable string via ExperimentConfig."""
+    metadata_filename = filename.replace(".csv", "_metadata.json")
+    filepath = os.path.join(app.config["DATA_DIR"], metadata_filename)
+    print(f"Loading metadata from {filepath}")
+
+    if not os.path.exists(filepath):
+        return jsonify({"error": "Metadata file not found by Flask",
+                        "filepath": filepath}), 404
+
+    try:
+        with open(filepath, "r") as f:
+            metadata_raw = json.load(f)
+
+        config = ExperimentConfig.from_dict(metadata_raw)
+        pretty_str = str(config)  # Uses your __str__ method
+
+        return jsonify({
+            "metadata": pretty_str
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/download_csv/<filename>")
@@ -143,4 +168,4 @@ def reset_device():
         return jsonify({"status": "Error", "last_result": last_result}), 500
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
