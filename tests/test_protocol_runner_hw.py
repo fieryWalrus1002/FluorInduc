@@ -32,8 +32,8 @@ def test_run_protocol_creates_output_files(tmp_path):
     cfg = ExperimentConfig(
         actinic_led_intensity=75,
         measurement_led_intensity=30,
-        recording_length_s=0.05,
-        recording_hz=10000,
+        recording_length_s=0.5,
+        recording_hz=1000,
         ared_duration_s=0.01,
         wait_after_ared_s=0.005,
         agreen_delay_s=0.005,

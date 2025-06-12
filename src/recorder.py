@@ -36,7 +36,9 @@ class Recorder:
 
         logger.log_event("setup_recording")
 
+        # Declare ctype variables
         hzAcq = c_double(hz_acq)
+
         self.dwf.FDwfAnalogInChannelEnableSet(self.hdwf, c_int(channel), c_bool(True))
         self.dwf.FDwfAnalogInChannelRangeSet(
             self.hdwf, c_int(channel), c_double(channel_range)
@@ -45,19 +47,50 @@ class Recorder:
         self.dwf.FDwfAnalogInFrequencySet(self.hdwf, hzAcq)
         self.dwf.FDwfAnalogInRecordLengthSet(self.hdwf, c_double(-1))
 
+        hz_acq = c_double()
+        self.dwf.FDwfAnalogInFrequencyGet(self.hdwf, byref(hz_acq))
+        print(f"Confirmed acquisition frequency: {hz_acq.value}")
+
+        channel_range = c_double()
+        self.dwf.FDwfAnalogInChannelRangeGet(self.hdwf, c_int(self.channel), byref(channel_range))
+        print(f"Channel {self.channel} range: {channel_range.value} V")
+
+        self.dwf.FDwfAnalogInTriggerSourceSet(self.hdwf, c_int(0))  # 0 = trigsrcNone
         self.dwf.FDwfAnalogInConfigure(self.hdwf, c_int(0), c_int(1))
 
     def wait_for_data_start(self):
-        """Block until data acquisition actually begins."""
+        """Block until data acquisition actually begins.
+
+                    self.dwf.FDwfAnalogInStatus(self.hdwf, c_int(1), byref(sts))
+                        if cSamples == 0 and (
+                            sts == dwfconstants.DwfStateConfig
+                            or sts == dwfconstants.DwfStatePrefill
+                            or sts == dwfconstants.DwfStateArmed
+                        ):
+                            # Acquisition not yet started, wait a bit
+                            time.sleep(0.5)
+                            continue
+
+            typedef enum {
+                DwfStateReady = 0,     // Ready to configure / start
+                DwfStateConfig = 1,    // Configuring
+                DwfStatePrefill = 2,   // Prefilling the buffer
+                DwfStateArmed = 3,     // Ready and waiting for trigger
+                DwfStateWait = 4,      // Waiting for trigger timeout
+                DwfStateTriggered = 5, // Triggered, data incoming
+                DwfStateRunning = 6,   // Running (streaming data)
+                DwfStateDone = 7       // Acquisition complete
+                } DwfState;
+
+        """
         sts = c_byte()
         while True:
             self.dwf.FDwfAnalogInStatus(self.hdwf, c_int(1), byref(sts))
             if sts.value not in (dwfconstants.DwfStateConfig, dwfconstants.DwfStatePrefill, dwfconstants.DwfStateArmed):
                 break
-            time.sleep(0.01)
+            time.sleep(0.5)
         self.logger.log_event("recording_started")
         return time.perf_counter()
-
 
     def complete_recording(self, actions=None):
         """
@@ -71,40 +104,69 @@ class Recorder:
         rgdSamples = (c_double * n_samples)()
         cAvailable = c_int()
         cLost = c_int()
+        cSamples = c_int()
         cCorrupted = c_int()
-        cSamples = 0
         fLost = 0
         fCorrupted = 0
 
         self.logger.log_event("recording_loop_started")
 
+        loopCounter = 0
+
+        cSamples = 0
         while cSamples < n_samples:
             self.dwf.FDwfAnalogInStatus(self.hdwf, c_int(1), byref(sts))
 
+            if (loopCounter % 50) == 0:
+                print(f"[DEBUG] Loop {loopCounter}: Status={sts.value}, Samples={cSamples}/{n_samples}")
+            loopCounter += 1
+
+            if cSamples == 0 and (
+                sts == dwfconstants.DwfStateConfig
+                or sts == dwfconstants.DwfStatePrefill
+                or sts == dwfconstants.DwfStateArmed
+            ):
+                # Acquisition not yet started, wait a bit
+                time.sleep(0.05)
+                continue
+
             # Trigger actions when sample number reached
+            # if actions:
+            #     while actions and cSamples >= actions[0][0]:
+            #         _, action_func, label = actions.pop(0)
+            #         action_func()
+            #         self.logger.log_event(f"action_{label}_executed_at_sample_{cSamples}")
+
             if actions:
-                while actions and cSamples >= actions[0][0]:
-                    _, action_func, label = actions.pop(0)
-                    action_func()
-                    self.logger.log_event(f"action_{label}_executed_at_sample_{cSamples}")
+                for action in actions[:]:  # iterate over copy
+                    if cSamples >= action[0]:
+                        print(f"Executing action at sample {cSamples}")
+                        action[1]()
+                        actions.remove(action)
+                        self.logger.log_event(f"action_{action[2]}_executed_at_sample_{cSamples}")
 
             self.dwf.FDwfAnalogInStatusRecord(
                 self.hdwf, byref(cAvailable), byref(cLost), byref(cCorrupted)
             )
 
+            # if there are any lost or corrupted samples, set the flags
             if cLost.value:
                 fLost = 1
             if cCorrupted.value:
                 fCorrupted = 1
 
+            # adds lost samples to the count, if any
             cSamples += cLost.value
 
+            # if no samples are available, continue to the next iteration
             if cAvailable.value == 0:
                 continue
 
+            # If the number of available samples exceeds the remaining samples to record, limit it
             if cSamples + cAvailable.value > n_samples:
                 cAvailable = c_int(n_samples - cSamples)
 
+            #         # Read the available samples into the rgdSamples array
             self.dwf.FDwfAnalogInStatusData(
                 self.hdwf,
                 c_int(self.channel),
@@ -112,6 +174,7 @@ class Recorder:
                 cAvailable,
             )
 
+            # add the number of available samples to the count
             cSamples += cAvailable.value
 
         self.logger.log_event("recording_completed")
