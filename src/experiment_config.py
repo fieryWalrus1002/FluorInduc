@@ -23,7 +23,7 @@ class ExperimentConfig:
     channel_range: int = 2  # Default range for the channel, e.g., 2V
     filename: str = "record.csv"
     event_logger: EventLogger = field(default_factory=EventLogger)
-    
+
     # print the configuration in a readable format
     def print_config(self):
         print(self)
@@ -63,7 +63,7 @@ class ExperimentConfig:
 
             _recording_length = _agreen_delay_s + _agreen_duration
 
-            return cls(
+            cfg = cls(
                 actinic_led_intensity=clamp(_actinic_led_intensity, 0, 100),
                 measurement_led_intensity=clamp(_measurement_led_intensity, 0, 100),
                 recording_length_s=clamp(
@@ -82,6 +82,12 @@ class ExperimentConfig:
                 filename=_filename
                 )
 
+            # Handle event_logger if present
+            if "event_logger" in data:
+                cfg.event_logger = EventLogger.from_dict(data["event_logger"])
+
+            return cfg
+        
         except (ValueError, TypeError) as e:
             raise ValueError(f"Invalid input in experiment config: {e}")
 
@@ -104,3 +110,5 @@ class ExperimentConfig:
         import json
 
         return json.dumps(self.to_dict(), indent=indent)
+
+

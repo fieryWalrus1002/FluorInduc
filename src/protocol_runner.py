@@ -40,9 +40,8 @@ class ProtocolRunner:
         """
 
         # get the time 0 for this
-        eventLogger = cfg.event_logger
-        eventLogger.start_event("protocol_start")
-        
+        logger = cfg.event_logger
+        logger.start_event("protocol_start")
 
         # step 1: pre set the parameters for the recording and voltages
         self.io.open_device()
@@ -56,46 +55,62 @@ class ProtocolRunner:
             (
                 green_trigger_point,  # the acquisition number for Agreen ON
                 lambda: self.io.set_led_intensity("green", cfg.measurement_led_intensity),  # the action to turn Agreen ON
+                "agreen_on",  # event name for logging
             ),  # Step 9: Agreen ON
         ]
 
         n_samples = int(cfg.recording_hz * cfg.recording_length_s)
 
         # Set LEDs OFF
+        logger.log_event("leds_off_being_set")
         self.io.set_led_intensity("red", 0)  # actinic channel off
         self.io.set_led_intensity("green", 0)  # measurement channel off
-        # eventLogger.log_event("leds_off", 
-        
+        logger.log_event("leds_off_complete")
+
     # add in the event logger calls, and also make sure we can also call it during the record process
 
         # step 2: Close shutter if not already closed
+        logger.log_event("shutter_closing")
         self.io.toggle_shutter(False)
+        logger.log_event("shutter_closed")
 
         # step 3: Ared ON for specified duration
+        logger.log_event("ared_on")
         self.io.set_led_intensity("red", cfg.actinic_led_intensity)
         time.sleep(cfg.ared_duration_s)
-
+        
         # step 4: Ared OFF
         self.io.set_led_intensity("red", 0)
-
+        logger.log_event("ared_off")
+        
         # step 5: Wait for specified duration
         time.sleep(cfg.wait_after_ared_s)
 
+        logger.log_event("wait_after_ared_complete")
+        
         # step 6: Open shutter
+        logger.log_event("shutter_opening")
         self.io.toggle_shutter(True)
+        logger.log_event("shutter_opened")
 
         # step 7: Start recording
         # steps 8, 9, 10 are handled in the actions list above, during the recording process
         samples, count, lost, corrupted = self.recorder.record(
-            channel=0, n_samples=n_samples, hz_acq=cfg.recording_hz, channel_range=cfg.channel_range, actions=actions
+            logger=logger, channel=0, n_samples=n_samples, hz_acq=cfg.recording_hz, channel_range=cfg.channel_range, actions=actions
         )
 
         # step 11: Close shutter
+        logger.log_event("shutter_closing_after_recording")
         self.io.toggle_shutter(False)
+        logger.log_event("shutter_closed_after_recording")
 
         # step 12: Turn off Agreen
+        logger.log_event("agreen_off")
         self.io.set_led_intensity("green", 0)
+        logger.log_event("agreen_off_complete")
 
+        # Log the completion of the protocol
+        logger.log_event("protocol_complete")
         self.recorder.save_data(samples, cfg.recording_hz, cfg.filename)
 
         self.save_metadata(cfg)

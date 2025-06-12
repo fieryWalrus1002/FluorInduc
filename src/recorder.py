@@ -2,7 +2,7 @@ from ctypes import *
 import time
 from src import dwfconstants
 import numpy as np
-
+from src.event_logger import EventLogger
 
 class Recorder:
     def __init__(self, controller):
@@ -13,7 +13,7 @@ class Recorder:
         self.dwf = controller.dwf  # Reference to the DWF library
         self.hdwf = controller.hdwf  # Reference to the device handle
 
-    def record(self, channel, n_samples, hz_acq=1000000, channel_range=50, actions=None):
+    def record(self, logger: EventLogger, channel, n_samples, hz_acq=1000000, channel_range=50, actions=None):
         """
         instead of record_and_save, this function is used to record the signal from the specified channel
         and return it as a tuple of lists (time, value).
@@ -26,6 +26,7 @@ class Recorder:
         :param actions: A list of tuples (sample_number, action) where action is a callable to execute at that sample.
         """
 
+        logger.start_event("setup_recording")
         # Declare ctype variables
         sts = c_byte()
         hzAcq = c_double(hz_acq)
@@ -61,7 +62,7 @@ class Recorder:
         print(f"Channel {channel} range: {channel_range.value} V")
 
         self.dwf.FDwfAnalogInConfigure(self.hdwf, c_int(0), c_int(1))
-
+        logger.log_event("recording_started")
         cSamples = 0
         while cSamples < n_samples:
 
@@ -81,6 +82,7 @@ class Recorder:
                     if cSamples >= action[0]:
                         print(f"Executing action at sample {cSamples}")
                         action[1]()
+                        logger.log_event(f"action_[{action[2]}]_executed_at_sample_{cSamples}")
                         # now pop the action from the list so it does not get executed again
                         actions.pop(0)
 
@@ -117,7 +119,7 @@ class Recorder:
             cSamples += cAvailable.value
 
         # self.dwf.FDwfAnalogOutReset(self.hdwf, c_int(channel))
-
+        logger.log_event("recording_completed")
         print(f"Recorded {cSamples} samples, lost {cLost.value}, corrupted {cCorrupted.value}")
         return rgdSamples[:cSamples], cSamples, fLost, fCorrupted
 
