@@ -10,7 +10,7 @@ class EventLogger:
 
     def start_event(self, label: str = "start"):
         """Marks the beginning of the timeline with an optional label."""
-        self._start_time = time.time()
+        self._start_time = time.perf_counter()
         self._events.clear()
         self._events.append((0.0, label))
 
@@ -18,7 +18,7 @@ class EventLogger:
         """Logs a labeled event with the time offset (in seconds) from the start."""
         if self._start_time is None:
             raise RuntimeError("EventLogger must be started using start_event() before logging events.")
-        now = time.time()
+        now = time.perf_counter()
         elapsed = now - self._start_time
         self._events.append((elapsed, label))
 
@@ -49,13 +49,22 @@ class EventLogger:
         logger._events = [(item["time_s"], item["label"]) for item in data]
         return logger
 
+    @classmethod
+    def from_dict(cls, data: list[dict]) -> "EventLogger":
+        logger = cls()
+        logger._start_time = 0  # synthetic start time
+        logger._events = [
+            (float(item.get("time_s", 0.0)), str(item.get("label", "")))
+            for item in data
+            if isinstance(item, dict) and "time_s" in item and "label" in item
+        ]
+        return logger
+
     def __str__(self):
         return "\n".join(f"{t:.6f}s - {label}" for t, label in self._events)
 
+    def to_csv(self) -> str:
+        """Returns the events in CSV format."""
+        return "time_s,label\n" + "\n".join(f"{t:.6f},{label}" for t, label in self._events)
 
-if __name__ == "__main__":
-    logger = EventLogger()
-    logger.start_event("test_event")
-    logger.log_event("step_1_completed")
-    logger.log_event("step_2_completed")
-    print(logger.to_json())
+

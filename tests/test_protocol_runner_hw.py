@@ -6,6 +6,22 @@ from src.io_controller import IOController
 from src.recorder import Recorder
 import json
 import os
+import re
+
+
+def assert_label_matches(labels, pattern: str, *, message=None):
+    """
+    Assert that at least one label matches the given regex pattern.
+
+    :param labels: List of label strings.
+    :param pattern: Regex pattern to match against labels.
+    :param message: Optional custom error message.
+    """
+    if not any(re.search(pattern, label) for label in labels):
+        raise AssertionError(
+            message or f"No label matched the pattern: '{pattern}'\nLabels: {labels}"
+        )
+
 
 @pytest.mark.hardware
 def test_run_protocol_creates_output_files(tmp_path):
@@ -42,15 +58,29 @@ def test_run_protocol_creates_output_files(tmp_path):
 
         events = cfg.event_logger.get_events()
         labels = [label for _, label in events]
-        assert "ared_on" in labels
-        assert "recording_started" in labels
-        assert any("action_[agreen_on]_executed" in label for label in labels)
-        assert "protocol_complete" in labels
 
-        print(result)
+        # print all the labels out
+        print("Logged events:")
+        for label in labels:
+            print(label)
 
-    except Exception as e:
-        io.cleanup()
-        return f"An error occurred: {str(e)}"
+        # match some basic events before recording
+        assert_label_matches(
+            labels, r"ared_on", message="Expected 'ared_on' event was not found"
+        )
+        assert_label_matches(
+            labels, r"recording_started", message="Expected 'recording_started' event was not found"
+        )
+        assert_label_matches(
+            labels, r"protocol_complete", message="Expected 'protocol_complete' event was not found"
+        )
+
+        # match action events that should be present in the recorded data
+        assert_label_matches(labels, r"ared_on")
+        assert_label_matches(labels, r"action_ared_off_executed_at_sample_\d+")
+        assert_label_matches(labels, r"action_agreen_on_executed_at_sample_\d+")
+        assert_label_matches(labels, r"action_shutter_opened_executed_at_sample_\d+")
+
+
     finally:
         io.cleanup()

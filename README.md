@@ -99,6 +99,19 @@ requirements.txt          # Python dependencies
 
 ---
 
+## Pytest
+
+From the root directory, you can run the tests using pytest:
+```
+pytest                 # hardware tests skipped
+pytest --run-hardware  # hardware tests run
+```
+To run the hardware tests, ensure that the Digilent Analog Discovery is connected and recognized by the system.
+
+I like to run it with verbose output, like so:
+```
+pytest -vv --run-hardware
+```
 ## License
 
 This project is licensed under the MIT License.  
