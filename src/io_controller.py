@@ -152,16 +152,17 @@ class IOController:
         else:
             self.pin_state &= ~(1 << pin)  # Set the pin low
 
+        # we end up doing this twice in order to toggle the shutter.
         self.dwf.FDwfDigitalIOOutputSet(self.hdwf, c_int(self.pin_state))
-        # time.sleep(0.1)  # Optional short delay for hardware settling
 
     def toggle_shutter(self, state=True):
         if state:
             self.set_pin(self.pin_gate, 1)
             self.set_pin(self.pin_trigger, 0)
         else:
-            self.set_pin(self.pin_trigger, 1)
             self.set_pin(self.pin_gate, 0)
+            self.set_pin(self.pin_trigger, 1)
+
 
     def set_led_intensity(self, led: str, intensity):
         """

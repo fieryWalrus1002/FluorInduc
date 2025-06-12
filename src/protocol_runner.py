@@ -39,6 +39,11 @@ class ProtocolRunner:
             12	Turn off Agreen
         """
 
+        # get the time 0 for this
+        eventLogger = cfg.event_logger
+        eventLogger.start_event("protocol_start")
+        
+
         # step 1: pre set the parameters for the recording and voltages
         self.io.open_device()
 
@@ -59,6 +64,9 @@ class ProtocolRunner:
         # Set LEDs OFF
         self.io.set_led_intensity("red", 0)  # actinic channel off
         self.io.set_led_intensity("green", 0)  # measurement channel off
+        # eventLogger.log_event("leds_off", 
+        
+    # add in the event logger calls, and also make sure we can also call it during the record process
 
         # step 2: Close shutter if not already closed
         self.io.toggle_shutter(False)

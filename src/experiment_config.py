@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 import os
 import json
+from src.event_logger import EventLogger
 
 def ensure_file_suffix(filename: str, suffix: str = ".csv") -> str:
     """Ensure the filename ends with the specified suffix."""
@@ -21,9 +22,11 @@ class ExperimentConfig:
     agreen_duration_s: float = 0.0
     channel_range: int = 2  # Default range for the channel, e.g., 2V
     filename: str = "record.csv"
-
+    event_logger: EventLogger = field(default_factory=EventLogger)
+    
     # print the configuration in a readable format
-
+    def print_config(self):
+        print(self)
 
     def __str__(self) -> str:
         return (
@@ -63,15 +66,21 @@ class ExperimentConfig:
             return cls(
                 actinic_led_intensity=clamp(_actinic_led_intensity, 0, 100),
                 measurement_led_intensity=clamp(_measurement_led_intensity, 0, 100),
-                recording_length_s=clamp(_recording_length, 0, 600),  # e.g. max 10 minutes
-                recording_hz=clamp(_recording_hz, 1000, 1000000),  # e.g. min 1kHz, max 1MHz
+                recording_length_s=clamp(
+                    _recording_length, 0, 600
+                ),  # e.g. max 10 minutes
+                recording_hz=clamp(
+                    _recording_hz, 1000, 1000000
+                ),  # e.g. min 1kHz, max 1MHz
                 ared_duration_s=clamp(_ared_duration_s, 0.0, 10.0),  # max 10 seconds
-                wait_after_ared_s=clamp(_wait_after_ared_s, 0.0, 10.0),  # max 10 seconds
+                wait_after_ared_s=clamp(
+                    _wait_after_ared_s, 0.0, 10.0
+                ),  # max 10 seconds
                 agreen_delay_s=clamp(_agreen_delay_s, 0.0, 10.0),  # max 10 seconds
                 agreen_duration_s=clamp(_agreen_duration, 0.0, 10.0),  # max 10 seconds
                 channel_range=_channel_range,
                 filename=_filename
-            )
+                )
 
         except (ValueError, TypeError) as e:
             raise ValueError(f"Invalid input in experiment config: {e}")
@@ -88,6 +97,7 @@ class ExperimentConfig:
             "agreen_duration_s": self.agreen_duration_s,
             "channel_range": self.channel_range,
             "filename": self.filename,
+            "event_logger": self.event_logger.to_dict() if self.event_logger else None
         }
 
     def to_json(self, indent: int = 4) -> str:
