@@ -26,6 +26,13 @@ class EventLogger:
         """Returns the list of logged events as (elapsed_time_s, label) tuples."""
         return self._events
 
+    def get_event_time(self, label: str) -> Optional[float]:
+        """Returns the elapsed time in seconds for a specific event label."""
+        for t, lbl in self._events:
+            if lbl == label:
+                return t
+        return None
+
     def to_json(self, indent: int = 2) -> str:
         """Returns the events as a JSON-formatted string."""
         events_dict = [

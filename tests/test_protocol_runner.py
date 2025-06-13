@@ -30,7 +30,7 @@ def test_run_protocol_calls_all_steps(tmp_path):
     )
 
     runner = ProtocolRunner(io, recorder)
-    result_msg = runner.run_protocol(cfg)
+    result_msg = runner.run_protocol(cfg, debug=True)
 
     assert "Protocol completed successfully" in result_msg
 

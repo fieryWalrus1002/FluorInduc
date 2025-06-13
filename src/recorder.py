@@ -92,7 +92,7 @@ class Recorder:
         self.logger.log_event("recording_started")
         return time.perf_counter()
 
-    def complete_recording(self, actions=None):
+    def complete_recording(self, actions=None, debug=False):
         """
         Complete the recording process and return the recorded data.
         :param actions: A list of actions to execute during recording.
@@ -108,6 +108,7 @@ class Recorder:
         cCorrupted = c_int()
         fLost = 0
         fCorrupted = 0
+        in_real_acquisition = False  # Track if we're in real acquisition yet
 
         self.logger.log_event("recording_loop_started")
 
@@ -117,11 +118,12 @@ class Recorder:
         while cSamples < n_samples:
             self.dwf.FDwfAnalogInStatus(self.hdwf, c_int(1), byref(sts))
 
-            if (loopCounter % 50) == 0:
-                print(f"[DEBUG] Loop {loopCounter}: Status={sts.value}, Samples={cSamples}/{n_samples}")
-            loopCounter += 1
+            if debug:
+                if (loopCounter % 50) == 0:
+                    print(f"[DEBUG] Loop {loopCounter}: Status={sts.value}, Samples={cSamples}/{n_samples}")
+                loopCounter += 1
 
-            if cSamples == 0 and (
+            if cSamples <= 0 and (
                 sts == dwfconstants.DwfStateConfig
                 or sts == dwfconstants.DwfStatePrefill
                 or sts == dwfconstants.DwfStateArmed
@@ -181,17 +183,20 @@ class Recorder:
         print(f"Recorded {cSamples} samples, lost {fLost}, corrupted {fCorrupted}")
         return rgdSamples[:cSamples], cSamples, fLost, fCorrupted
 
-    def save_data(self, rgdSamples, hz_acq, filename="record.csv"):
+    def save_data(self, rgdSamples, hz_acq, start_time: float = None, filename="record.csv"):
         """
         Save the recorded data to a CSV file.
         :param rgdSamples: The recorded samples, as the ctype array.
         :param filename: Name of the CSV file to save the data.
         """
+        if start_time is None:
+            # If no start time is provided, use 0.0
+            start_time = 0.0
 
         with open(filename, "w") as f:
             f.write("time,signal\n")
             for i, value in enumerate(rgdSamples):
-                time_s = i * (1.0 / hz_acq)
+                time_s = start_time + i * (1.0 / hz_acq)
                 f.write(f"{time_s},{value}\n")
 
 

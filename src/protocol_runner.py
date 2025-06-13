@@ -3,12 +3,12 @@ from src.recorder import Recorder
 from src.experiment_config import ExperimentConfig
 import time
 
-
 class ProtocolRunner:
     def __init__(self, io: IOController, recorder: Recorder):
         self.io = io
         self.recorder = recorder
-
+        self.time_it_takes_to_start_recording = 0.025 # delay between calling complete_recording and the start of the recording loop
+        
     @staticmethod
     def calculate_sample_number_for_action(action_time, hz_acq=1000000):
         """
@@ -48,7 +48,7 @@ class ProtocolRunner:
                 "The Agreen LED duration plus delay exceeds the recording length. "
                 "Please adjust the recording length or the Agreen LED parameters."
             )
-    
+
         total_recording_length = cfg.wait_after_ared_s + cfg.recording_length_s
 
         # Calculate the number of samples based on the recording frequency
@@ -57,7 +57,7 @@ class ProtocolRunner:
         # Ensure we have at least 1 sample to record
         return max(n_samples, 1)
 
-    def run_protocol(self, cfg: ExperimentConfig):
+    def run_protocol(self, cfg: ExperimentConfig, debug: bool = False) -> str:
         """
         Runs the revised LED + shutter + recording protocol with specified timing.
         All durations are in milliseconds.
@@ -137,10 +137,12 @@ class ProtocolRunner:
         # turn on the actinic LED. We'll switch it off after the recording starts
         logger.log_event("ared_on")
         self.io.set_led_intensity("red", cfg.actinic_led_intensity)
-        time.sleep(cfg.ared_duration_s)
+        remaining_time = cfg.ared_duration_s - self.time_it_takes_to_start_recording
+        logger.log_event(f"ared_on_for_{remaining_time:.3f}_seconds")
+        time.sleep(remaining_time if remaining_time > 0 else 0)  # wait for the actinic LED to be on for the specified duration
 
         # Record and apply timed actions
-        samples, count, lost, corrupted = self.recorder.complete_recording(actions=actions)
+        samples, count, lost, corrupted = self.recorder.complete_recording(actions=actions, debug=debug)
 
         # Close shutter
         self.io.toggle_shutter(False)
@@ -152,7 +154,10 @@ class ProtocolRunner:
 
         # Log the completion of the protocol
         logger.log_event("protocol_complete")
-        self.recorder.save_data(samples, cfg.recording_hz, cfg.filename)
+
+        # we need to get the recording_loop_started time to calculate the time of the actions
+        recording_loop_started_time = logger.get_event_time("recording_loop_started")
+        self.recorder.save_data(samples, cfg.recording_hz, recording_loop_started_time, cfg.filename)
 
         self.save_metadata(cfg)
 
