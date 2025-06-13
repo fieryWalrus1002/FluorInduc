@@ -58,10 +58,10 @@ class IOController:
         max = self.leds[led].get("max", 5.0)
         if not (0 <= intensity <= 100):
             raise ValueError("Intensity must be between 0 and 100.")
-        
+
         if intensity <= 0:
             return 0.0 # return 0V for 0% intensity
-        
+
         voltage = min + (max - min) * (intensity / 100.0)
         return voltage
 
@@ -163,6 +163,23 @@ class IOController:
             self.set_pin(self.pin_gate, 0)
             self.set_pin(self.pin_trigger, 1)
 
+    # def toggle_shutter(self, state=True):
+    #     """
+    #     Toggle the shutter open or closed by simultaneously setting both gate and trigger pins.
+    #     When state=True, shutter is opened (gate=1, trigger=0)
+    #     When state=False, shutter is closed (gate=0, trigger=1)
+    #     """
+    #     if state:
+    #         # Open: gate=1, trigger=0
+    #         self.pin_state |= 1 << self.pin_gate
+    #         self.pin_state &= ~(1 << self.pin_trigger)
+    #     else:
+    #         # Close: gate=0, trigger=1
+    #         self.pin_state &= ~(1 << self.pin_gate)
+    #         self.pin_state |= 1 << self.pin_trigger
+
+    #     # One atomic update
+    #     self.dwf.FDwfDigitalIOOutputSet(self.hdwf, c_int(self.pin_state))
 
     def set_led_intensity(self, led: str, intensity):
         """
@@ -199,7 +216,6 @@ class IOController:
             raise ValueError("LED number must be between 0 and 1.")
 
         print(f"Setting LED {led_int} voltage to {value} V")
-
 
         # Set the analog output to the modulation value
         self.dwf.FDwfAnalogOutNodeEnableSet(

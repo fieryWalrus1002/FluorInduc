@@ -3,12 +3,16 @@ from src.recorder import Recorder
 from src.experiment_config import ExperimentConfig
 import time
 
+# If I set this value, I get the calculated actinic period based on the event logger:
+# So we can reliably get to within 1ms of the expected time.
+# 0.035 - 0.999s, 1.000s, 0.999s, 0.999s
+
 class ProtocolRunner:
     def __init__(self, io: IOController, recorder: Recorder):
         self.io = io
         self.recorder = recorder
-        self.time_it_takes_to_start_recording = 0.025 # delay between calling complete_recording and the start of the recording loop
-        
+        self.time_it_takes_to_start_recording = 0.035 # delay between calling complete_recording and the start of the recording loop
+
     @staticmethod
     def calculate_sample_number_for_action(action_time, hz_acq=1000000):
         """
@@ -88,6 +92,13 @@ class ProtocolRunner:
         self.io.set_led_intensity("green", 0)  # measurement channel off
         self.io.toggle_shutter(False)
 
+        # do a stupid event logger check of how long it takes to open and close the shutter
+        logger.log_event("test_shutter_opening")
+        self.io.toggle_shutter(True)
+        logger.log_event("test_shutter_opened")
+        self.io.toggle_shutter(False)
+        logger.log_event("test_shutter_closed")
+
         n_samples = self.calculate_samples_from_config(cfg)
 
         # set up the actions that will be taken during recording
@@ -97,7 +108,7 @@ class ProtocolRunner:
         ared_off_sample = 0
         wait_after_ared_sample = int(cfg.wait_after_ared_s * cfg.recording_hz)
         shutter_open_sample = wait_after_ared_sample + int(0.002 * cfg.recording_hz)
-        agreen_on_sample = shutter_open_sample + int(cfg.agreen_delay_s * cfg.recording_hz)
+        agreen_on_sample = shutter_open_sample
 
         actions = [
             (ared_off_sample,
@@ -142,7 +153,7 @@ class ProtocolRunner:
         time.sleep(remaining_time if remaining_time > 0 else 0)  # wait for the actinic LED to be on for the specified duration
 
         # Record and apply timed actions
-        samples, count, lost, corrupted = self.recorder.complete_recording(actions=actions, debug=debug)
+        samples, n, lost, corrupted = self.recorder.complete_recording(actions=actions, debug=debug)
 
         # Close shutter
         self.io.toggle_shutter(False)

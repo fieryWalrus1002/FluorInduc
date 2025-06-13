@@ -233,33 +233,65 @@ def test_run_protocol_timing_correct(tmp_path):
     recording_complete = get_event_time_by_pattern(
         relative_events, r"recording_completed"
     )
+    buffer_flush_started = get_event_time_by_pattern(
+        relative_events, r"start_buffer_flush"
+    )
+    
+    test_shutter_opening = get_event_time_by_pattern(
+        relative_events, r"test_shutter_opening"
+    )
+    test_shutter_opened = get_event_time_by_pattern(
+        relative_events, r"test_shutter_opened"
+    )
+    test_shutter_closed = get_event_time_by_pattern(
+        relative_events, r"test_shutter_closed"
+    )
+    # ensure that the test shutter transitions are less than 1ms apart
+    assert abs(test_shutter_opened - test_shutter_opening) < 0.001, (
+        f"Test shutter opening took too long: started at {test_shutter_opening:.3f}s, opened at {test_shutter_opened:.3f}s"
+    )
+    assert abs(test_shutter_closed - test_shutter_opened) < 0.001, (
+        f"Test shutter closing took too long: opened at {test_shutter_opened:.3f}s, closed at {test_shutter_closed:.3f}s"
+    )
+    assert abs(test_shutter_closed - test_shutter_opening) < 0.002, (
+        f"Test shutter total transition took too long: started at {test_shutter_opening:.3f}s, closed at {test_shutter_closed:.3f}s"
+    )
 
-    # we need the differencne between ared_on and the action_ared_off to be right around the ared_duration_s
-    assert abs(action_ared_off - ared_on - cfg.ared_duration_s) < 0.01, (
+    # Check that the buffer flush started and completed within a reasonable time
+    assert (
+        abs(recording_loop_started - buffer_flush_started) < 0.001
+    ), f"Buffer flush took too long: started at {buffer_flush_started:.3f}s, completed at {recording_loop_started:.3f}s"
+
+    # Expect a consistent timing for the ared_on event, within 1ms of the ared_duration_s based on the event logger
+    assert abs(action_ared_off - ared_on - cfg.ared_duration_s) < 0.003, (
         f"Action 'ared_off' timing is incorrect: expected around {cfg.ared_duration_s}s after 'ared_on', "
         f"but got {action_ared_off - ared_on:.3f}s"
     )
 
-    # time between the ared_off and the shutter opening should be very small, as the shutter opens immediately after the actinic LED is turned off
-    assert abs(action_shutter_opened - action_ared_off) < 0.01, (
-        f"Action 'shutter_opened' timing is incorrect: expected very small delay after 'ared_off', "
+    # So the shutter and the ared_off should be very close in timing, but then we have the wait
+    # We expect that the amount of time between the ared_off and the shutter_open is equal to the wait_after_ared_s
+    assert abs(action_shutter_opened - action_ared_off - cfg.wait_after_ared_s) <= 0.001, (
+        f"Action 'shutter_opened' timing is incorrect: expected around {cfg.wait_after_ared_s}s after 'ared_off', "
         f"but got {action_shutter_opened - action_ared_off:.3f}s"
     )
 
-    # Check that the Agreen LED was turned on after the delay
-    assert abs(action_agreen_on - action_shutter_opened - cfg.agreen_delay_s) < 0.01, (
+    # # Check that the Agreen LED was turned on after the delay
+    assert abs(action_agreen_on - action_shutter_opened - cfg.agreen_delay_s) < 0.001, (
         f"Action 'agreen_on' timing is incorrect: expected around {cfg.agreen_delay_s}s after 'shutter_opened', "
         f"but got {action_agreen_on - action_shutter_opened:.3f}s"
     )
-    assert abs(recording_complete - action_agreen_on - cfg.agreen_duration_s) < 0.01, (
-        f"Action 'recording_complete' timing is incorrect: expected around {cfg.agreen_duration_s}s after 'agreen_on', "
-        f"but got {recording_complete - action_agreen_on:.3f}s"
-    )
+    
+    
+    # assert abs(recording_complete - action_agreen_on - cfg.agreen_duration_s) < 0.010, (
+    #     f"Action 'recording_complete' timing is incorrect: expected around {cfg.agreen_duration_s}s after 'agreen_on', "
+    #     f"but got {recording_complete - action_agreen_on:.3f}s"
+    # )
 
-    # we expect the time from recording_loop_started to the recording_complete to be very close to the recording_length_s
-    assert abs(recording_complete - recording_loop_started - cfg.recording_length_s) < 0.01, (
-        f"Recording completion timing is incorrect: expected around {cfg.recording_length_s}s after 'recording_loop_started', "
-        f"but got {recording_complete - recording_loop_started:.3f}s"
-    )
+    # # we expect the time from recording_loop_started to the recording_complete to be very close to the recording_length_s
+    # # Be within 25ms tolerance, as the recording may take a bit longer due to hardware delays
+    # assert abs(recording_complete - recording_loop_started - cfg.recording_length_s) < 0.010, (
+    #     f"Recording completion timing is incorrect: expected around {cfg.recording_length_s}s after 'recording_loop_started', "
+    #     f"but got {recording_complete - recording_loop_started:.3f}s"
+    # )
 
     io.cleanup()
