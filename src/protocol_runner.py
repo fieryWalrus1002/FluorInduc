@@ -1,11 +1,13 @@
 from src.io_controller import IOController
 from src.recorder import Recorder
 from src.experiment_config import ExperimentConfig
+from src.timed_action_factory import TimedActionFactory
 import time
 
 # If I set this value, I get the calculated actinic period based on the event logger:
 # So we can reliably get to within 1ms of the expected time.
-# 0.035 - 0.999s, 1.000s, 0.999s, 0.999s
+# delay time, actual measurements(should be 1s)
+# 0.035 - 1.005s, 0.979s, 0.990s, 0.982s, 1.004s
 
 class ProtocolRunner:
     def __init__(self, io: IOController, recorder: Recorder):
@@ -61,7 +63,7 @@ class ProtocolRunner:
         # Ensure we have at least 1 sample to record
         return max(n_samples, 1)
 
-    def run_protocol(self, cfg: ExperimentConfig, debug: bool = False) -> str:
+    def run_protocol(self, cfg: ExperimentConfig, factory: TimedActionFactory = None, debug: bool = False) -> str:
         """
         Runs the revised LED + shutter + recording protocol with specified timing.
         All durations are in milliseconds.
@@ -102,32 +104,20 @@ class ProtocolRunner:
         n_samples = self.calculate_samples_from_config(cfg)
 
         # set up the actions that will be taken during recording
-        # Calculate the sample numbers for the actions based on the recording frequency
-        # As checking the time in the loop is not accurate enough, we will use sample numbers
-        # and then record the time of the action in the event logger to verify the timing
-        ared_off_sample = 0
-        wait_after_ared_sample = int(cfg.wait_after_ared_s * cfg.recording_hz)
-        shutter_open_sample = wait_after_ared_sample + int(0.002 * cfg.recording_hz)
-        agreen_on_sample = shutter_open_sample
-
+        if factory is None:
+            # If no factory is provided, create a new one
+            logger.log_event("creating_timed_action_factory")
+            factory = TimedActionFactory(self.io, cfg)
+        else:
+            logger.log_event("using_existing_timed_action_factory")
+        
         actions = [
-            (ared_off_sample,
-            lambda: self.io.set_led_intensity("red", 0),
-            "ared_off"),
-            
-            (wait_after_ared_sample,
-            lambda: time.sleep(cfg.wait_after_ared_s),
-            "wait_after_ared"),
-            
-            (shutter_open_sample,
-            lambda: self.io.toggle_shutter(True),
-            "shutter_opened"),
-            
-            (agreen_on_sample,
-            lambda: self.io.set_led_intensity("green", cfg.measurement_led_intensity),
-            "agreen_on"),
+            factory.make_ared_off(),
+            factory.make_wait_after_ared(),
+            factory.make_shutter_opened(),
+            factory.make_agreen_on(),
         ]
-
+        
         # Prepare recording now that we know how many samples we will record
         logger.log_event("preparing_recorder")
         self.recorder.prepare_recording(
@@ -153,7 +143,7 @@ class ProtocolRunner:
         time.sleep(remaining_time if remaining_time > 0 else 0)  # wait for the actinic LED to be on for the specified duration
 
         # Record and apply timed actions
-        samples, n, lost, corrupted = self.recorder.complete_recording(actions=actions, debug=debug)
+        samples, n, lost, corrupted, debug_messages = self.recorder.complete_recording(actions=actions, debug=debug)
 
         # Close shutter
         self.io.toggle_shutter(False)
@@ -173,6 +163,10 @@ class ProtocolRunner:
         self.save_metadata(cfg)
 
         self.io.close_device()
+        
+        if debug:
+            for message in debug_messages:
+                print(message)
 
         return f"Protocol completed successfully, saving data to CSV: {cfg.filename}"
 

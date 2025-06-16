@@ -50,7 +50,7 @@ class IOController:
         # set the min and max voltage for the two LEDs
         self.leds = {
                     "red": {"pin": 0, "min": 0.0, "max": 5.0},
-                    "green": {"pin": 1, "min": 1.0, "max": 5.0},
+                    "green": {"pin": 1, "min": 0.0, "max": 3.3},
         }
 
     def intensity_to_voltage(self, led: str, intensity: int = 50) -> float:

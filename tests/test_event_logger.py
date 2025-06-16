@@ -29,7 +29,7 @@ def test_event_logger_timing():
     time.sleep(0.002)
     logger.log_event("leds_off_being_set")
     time.sleep(0.800)
-    logger.log_event("recording_started")
+    logger.log_event("recording_loop_started")
     time.sleep(0.010)
     logger.log_event("action_triggered_at_sample_2000")
     time.sleep(0.500)
@@ -40,7 +40,7 @@ def test_event_logger_timing():
     expected_labels = [
         "protocol_start",
         "leds_off_being_set",
-        "recording_started",
+        "recording_loop_started",
         "action_triggered_at_sample_2000",
         "recording_finished",
     ]

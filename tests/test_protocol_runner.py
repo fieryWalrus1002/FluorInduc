@@ -14,7 +14,7 @@ def test_run_protocol_calls_all_steps(tmp_path):
     # Updated mocks for the new recording interface
     recorder.prepare_recording.return_value = None
     recorder.wait_for_data_start.return_value = 0.0
-    recorder.complete_recording.return_value = ([0.0] * 1000, 1000, 0, 0)
+    recorder.complete_recording.return_value = ([0.0] * 1000, 1000, 0, 0, [])
 
 
     cfg = ExperimentConfig(
@@ -41,7 +41,7 @@ def test_event_logger_logs_events():
     recorder = MagicMock()
     recorder.prepare_recording.return_value = None
     recorder.wait_for_data_start.return_value = 0.0
-    recorder.complete_recording.return_value = ([0.0] * 1000, 1000, 0, 0)
+    recorder.complete_recording.return_value = ([0.0] * 1000, 1000, 0, 0, [])
 
     cfg = ExperimentConfig(
         actinic_led_intensity=50,

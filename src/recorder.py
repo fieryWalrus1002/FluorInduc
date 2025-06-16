@@ -3,6 +3,7 @@ import time
 from src import dwfconstants
 import numpy as np
 from src.event_logger import EventLogger
+from src.timed_action import TimedAction
 import numpy as np
 from numpy.ctypeslib import as_array
 
@@ -86,22 +87,21 @@ class Recorder:
             self.dwf.FDwfAnalogInStatusRecord(self.hdwf, byref(cAvailable), None, None)
 
             if cAvailable.value > 0:
-                self.logger.log_event(f"recording_started_at_sample={cAvailable.value}")
+                self.logger.log_event(f"data_available_at_sample_{cAvailable.value}")
                 break
             time.sleep(0.005)
 
         return start_time
 
-    def complete_recording(self, actions=None, debug=False):
+    def complete_recording(self, actions: list['TimedAction'] = None, debug=False):
         """
         Complete the recording process and return the recorded data.
-        :param actions: A list of actions to execute during recording.
-                        Each action is a tuple (sample_number, callable, label).
+        :param actions: A list of TimedAction instances to execute during recording.
         :return: A tuple (rgdSamples, total_samples, lost_flag, corrupted_flag)
         """
         sts = c_byte()
         n_samples = self.n_samples
-        max_total_samples = n_samples + 10000  # safety buffer
+        max_total_samples = n_samples * 2 # safety buffer
         rgdSamples = (c_double * max_total_samples)()
         np_buffer = np.ctypeslib.as_array(rgdSamples)
 
@@ -112,19 +112,23 @@ class Recorder:
         fLost = 0
         fCorrupted = 0
         loopCounter = 0
+        debug_messages = []
+
         # clear the input buffer before starting
         self.logger.log_event("start_buffer_flush")
         self.dwf.FDwfAnalogInConfigure(self.hdwf, 0, 0)  # stop
         self.flush_input_buffer()
         self.dwf.FDwfAnalogInConfigure(self.hdwf, 0, 1)  # start cleanly
+
+        start_time = time.perf_counter()
         self.logger.log_event("recording_loop_started")
 
         while cSamples < n_samples:
             self.dwf.FDwfAnalogInStatus(self.hdwf, c_int(1), byref(sts))
 
-            if debug and (loopCounter % 100 == 0 or loopCounter < 5):
-                print(
-                    f"[DEBUG] Loop {loopCounter}: Status={sts.value}, Samples={cSamples}/{n_samples}"
+            if debug and (loopCounter % 100 == 0 or loopCounter < 100):
+                debug_messages.append(
+                    f"{loopCounter}, {time.perf_counter() - start_time}, {cSamples}, {n_samples}"
                 )
 
             loopCounter += 1
@@ -155,29 +159,28 @@ class Recorder:
                 cAvailable,
             )
 
-            # Execute any actions where action[0] falls within the new sample range
+            # --- Time-based action trigger ---
             if actions:
-                for action in actions[:]:  # copy to allow removal
-                    action_sample = action[0]
-                    if last_cSamples <= action_sample < cSamples + cAvailable.value:
-                        print(f"Executing action at sample {action_sample}")
-                        action[1]()
-                        self.logger.log_event(
-                            f"action_{action[2]}_executed_at_sample_{action_sample}"
+                elapsed_time = time.perf_counter() - start_time
+                for action in actions:
+                    if action.should_execute(elapsed_time):
+                        print(
+                            f"[ACTION] Executing '{action.label}' at elapsed time {elapsed_time:.3f}s"
                         )
-                        actions.remove(action)
+                        action.execute(self.logger)
 
             cSamples += cAvailable.value
 
             # Sanity check for edge cases
             if np_buffer[cSamples - 1] == 0.0:
-                print(
+                debug_messages.append(
                     f"Warning: Last sample is 0.0 at index {cSamples - 1}. This may indicate an issue with the recording."
                 )
 
         self.logger.log_event("recording_completed")
+
         print(f"Recorded {cSamples} samples, lost {fLost}, corrupted {fCorrupted}")
-        return rgdSamples[:cSamples], cSamples, fLost, fCorrupted
+        return rgdSamples[:cSamples], cSamples, fLost, fCorrupted, debug_messages
 
     # def complete_recording(self, actions=None, debug=False):
     #     """
