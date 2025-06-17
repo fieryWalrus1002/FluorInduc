@@ -19,10 +19,10 @@ def test_acquisition_rate_and_zero_buffer(tmp_path):
         measurement_led_intensity=0,
         recording_length_s=2.0,
         recording_hz=1000,
-        ared_duration_s=0.01,
+        ared_duration_s=1.0,
         wait_after_ared_s=0.005,
-        agreen_delay_s=0.005,
-        agreen_duration_s=0.01,
+        agreen_delay_s=0.002,
+        agreen_duration_s=1.998,
         filename=str(filename),
     )
 

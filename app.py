@@ -86,10 +86,14 @@ def load_metadata(filename):
             metadata_raw = json.load(f)
 
         config = ExperimentConfig.from_dict(metadata_raw)
+        events = config.event_logger.get_events()
         pretty_str = str(config)  # Uses your __str__ method
 
         return jsonify({
-            "metadata": pretty_str
+            "metadata": pretty_str,
+            "events": [
+                {"time_s": t, "label": label} for t, label in events
+            ],
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

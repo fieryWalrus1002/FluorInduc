@@ -176,3 +176,6 @@ cython_debug/
 # my notes
 ref/
 dwf_examples/
+
+# datafiles in the data directory
+data/*.*

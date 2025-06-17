@@ -29,7 +29,7 @@ class ExperimentConfig:
         print(self)
 
     def __str__(self) -> str:
-        return (
+        base_config = (
             f"Experiment Setup:\n"
             f"  - Actinic LED Intensity: {self.actinic_led_intensity}%\n"
             f"  - Measurement LED Intensity: {self.measurement_led_intensity}%\n"
@@ -40,8 +40,17 @@ class ExperimentConfig:
             f"  - Total Recording Length: {self.recording_length_s:.3f} s\n"
             f"  - Sampling Rate: {self.recording_hz:,} Hz\n"
             f"  - Input Range: ±{self.channel_range/2:.1f} V\n"
-            f"  - Output File: {os.path.basename(self.filename)}"
+            f"  - Output File: {os.path.basename(self.filename)}\n"
         )
+
+        if self.event_logger and self.event_logger.get_events():
+            event_lines = "\n".join(
+                f"    {t:.6f}s - {label}" for t, label in self.event_logger.get_events()
+            )
+            return base_config + f"\n  Logged Events:\n{event_lines}"
+        else:
+            return base_config + "\n  No events logged."
+
 
     @classmethod
     def from_dict(cls, data: dict) -> "ExperimentConfig":

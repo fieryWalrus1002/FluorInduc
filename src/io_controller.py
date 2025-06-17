@@ -5,6 +5,21 @@ import sys
 from src.recorder import Recorder
 from src.experiment_config import ExperimentConfig
 import threading
+from src.constants import (
+    OUTPUT_MASK_ALL,
+    PIN_GATE,
+    PIN_MASK_ALL_OUTPUT,
+    PIN_STATE_ALL_LOW,
+    PIN_TRIGGER,
+    LED_VOLTAGE_RANGES,
+    LED_RED_PIN,
+    LED_GREEN_PIN,
+    PIN_MASK_ALL_OUTPUT,
+    PIN_STATE_ALL_LOW,
+    OUTPUT_MASK_ALL,
+    STRING_BUFFER_SIZE,
+    ANALOG_IN_CHANNEL,
+)
 
 # Uniblitz Model VMM-D1 shutter controller
 # Unit state:
@@ -33,24 +48,17 @@ class IOController:
         self._stop_event = threading.Event()
         self.hdwf = None # handle for the self.dwf library, set during open_device
         self.dwf = None  # DWF library handle, set during open_device
+        
         # Initialize system clock and pins
         self.hzSys = c_double()
-        # self.act_led_pin = 0 # analog out w1
-        # self.meas_led_pin = 1 # analog out w2
-        self.pin_gate = 2
-        self.pin_trigger = 3
-
-        self.pin_mask = 0xFF  # Set all pins to output (0b11111111)
-        self.pin_state = 0x00  # Initialize pin state to all low (0b00000000)
-        self.output_mask = 0xFF  # Set all pins to output (0b11111111)
-
-        # the channel we measure the signal from the analog out
-        self.signal_channel = 0
+        self.pin_mask = PIN_MASK_ALL_OUTPUT  # Set all pins to output (0b11111111)
+        self.pin_state = PIN_STATE_ALL_LOW  # Initialize pin state to all low (0b00000000)
+        self.output_mask = OUTPUT_MASK_ALL  # Set all pins to output (0b11111111)
 
         # set the min and max voltage for the two LEDs
         self.leds = {
-                    "red": {"pin": 0, "min": 0.0, "max": 5.0},
-                    "green": {"pin": 1, "min": 0.0, "max": 3.3},
+                    "red": {"pin": LED_RED_PIN, "min": 0.0, "max": 5.0},
+                    "green": {"pin": LED_GREEN_PIN, "min": 0.0, "max": 3.3},
         }
 
     def intensity_to_voltage(self, led: str, intensity: int = 50) -> float:
@@ -92,7 +100,7 @@ class IOController:
 
         if self.hdwf.value == 0:
             print("Failed to open device")
-            szerr = create_string_buffer(512)
+            szerr = create_string_buffer(STRING_BUFFER_SIZE)
             self.dwf.FDwfGetLastErrorMsg(szerr)
             print(str(szerr.value))
             self.hdwf = None
@@ -105,7 +113,7 @@ class IOController:
         self.dwf.FDwfDigitalIOOutputEnableSet(self.hdwf, c_int(self.pin_mask), c_int(self.output_mask))
 
         # ensure that the trigger pin is set to high to begin with
-        self.set_pin(self.pin_trigger, 1)
+        self.set_pin(PIN_TRIGGER, 1)
 
     def close_device(self):
         """Close the device properly."""
@@ -157,29 +165,12 @@ class IOController:
 
     def toggle_shutter(self, state=True):
         if state:
-            self.set_pin(self.pin_gate, 1)
-            self.set_pin(self.pin_trigger, 0)
+            self.set_pin(PIN_GATE, 1)
+            self.set_pin(PIN_TRIGGER, 0)
         else:
-            self.set_pin(self.pin_gate, 0)
-            self.set_pin(self.pin_trigger, 1)
+            self.set_pin(PIN_GATE, 0)
+            self.set_pin(PIN_TRIGGER, 1)
 
-    # def toggle_shutter(self, state=True):
-    #     """
-    #     Toggle the shutter open or closed by simultaneously setting both gate and trigger pins.
-    #     When state=True, shutter is opened (gate=1, trigger=0)
-    #     When state=False, shutter is closed (gate=0, trigger=1)
-    #     """
-    #     if state:
-    #         # Open: gate=1, trigger=0
-    #         self.pin_state |= 1 << self.pin_gate
-    #         self.pin_state &= ~(1 << self.pin_trigger)
-    #     else:
-    #         # Close: gate=0, trigger=1
-    #         self.pin_state &= ~(1 << self.pin_gate)
-    #         self.pin_state |= 1 << self.pin_trigger
-
-    #     # One atomic update
-    #     self.dwf.FDwfDigitalIOOutputSet(self.hdwf, c_int(self.pin_state))
 
     def set_led_intensity(self, led: str, intensity):
         """
