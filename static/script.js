@@ -80,6 +80,38 @@ async function populateFileList() {
     select.innerHTML = files.map(f => `<option value="${f}">${f}</option>`).join('');
 }
 
+// async function loadPlot() {
+//     const filename = document.getElementById("file_select").value;
+//     if (!filename) return;
+
+//     const response = await fetch(`/load_csv/${filename}`);
+//     const data = await response.json();
+
+//     // Plot signal
+//     const yMax = Math.max(...data.signal);
+//     const yRange = [0, yMax * 1.1];
+
+//     Plotly.newPlot('plot', [{
+//         x: data.time,
+//         y: data.signal,
+//         type: 'scatter',
+//         mode: 'lines',
+//         name: 'Signal'
+//     }], {
+//         title: filename,
+//         xaxis: { title: 'Time (s)' },
+//         yaxis: {
+//             title: 'Signal (V)',
+//             range: yRange
+//         }
+//     });
+
+//     document.getElementById('download_link').href = `/download_csv/${filename}`;
+
+//     // Load and display metadata
+//     await loadMetadata(filename);
+// }
+
 async function loadPlot() {
     const filename = document.getElementById("file_select").value;
     if (!filename) return;
@@ -91,19 +123,50 @@ async function loadPlot() {
     const yMax = Math.max(...data.signal);
     const yRange = [0, yMax * 1.1];
 
-    Plotly.newPlot('plot', [{
+    const trace = {
         x: data.time,
         y: data.signal,
         type: 'scatter',
         mode: 'lines',
         name: 'Signal'
-    }], {
+    };
+
+    // Load and display metadata (includes events)
+    await loadMetadata(filename);
+
+    // Grab parsed events if available
+    const eventLines = window.lastEventLines || [];
+
+    // Prepare vertical lines (as shapes)
+    const shapes = eventLines.map(event => ({
+        type: 'line',
+        x0: event.time_s,
+        x1: event.time_s,
+        y0: 0,
+        y1: yMax * 1.1,
+        line: {
+            color: 'red',
+            width: 1,
+            dash: 'dash'
+        }
+    }));
+
+    const annotations = eventLines.map(event => ({
+        x: event.time_s,
+        y: yMax * 1.05,
+        text: event.label,
+        showarrow: false,
+        font: { size: 10 },
+        xanchor: 'left',
+        yanchor: 'bottom'
+    }));
+
+    Plotly.newPlot('plot', [trace], {
         title: filename,
         xaxis: { title: 'Time (s)' },
-        yaxis: {
-            title: 'Signal (V)',
-            range: yRange
-        }
+        yaxis: { title: 'Signal (V)', range: yRange },
+        shapes: shapes,
+        annotations: annotations
     });
 
     document.getElementById('download_link').href = `/download_csv/${filename}`;
@@ -111,14 +174,27 @@ async function loadPlot() {
     // Load and display metadata
     await loadMetadata(filename);
 }
-
-
 async function loadMetadata(filename) {
     const response = await fetch(`/load_metadata/${filename}`);
     const result = await response.json();
     const metaElem = document.getElementById("metadata_pretty");
     console.log("Metadata response:", result);
     
+    /*
+        2.011583s - recording_loop_started
+        2.014542s - action_ared_off_executed_at_0.000_s
+        2.017010s - action_wait_after_ared_executed_at_0.002_s
+        2.017325s - action_shutter_opened_executed_at_0.002_s
+        2.020173s - action_agreen_on_executed_at_0.004_s
+        4.018108s - action_agreen_off_executed_at_2.004_s
+        4.018153s - action_end_recording_executed_at_2.004_s
+    */
+
+        window.lastEventLines = (result.events || []).filter(event =>
+            event.label === "recording_loop_started" ||
+            /^action_.*_executed_at_/.test(event.label)
+        );
+        
     if (!response.ok) {
         // Server returned 404 or 500
         metaElem.textContent = `Error loading metadata: ${result.error || 'Unknown error'}`;

@@ -1,0 +1,106 @@
+{
+    "actinic_led_intensity": 50,
+    "measurement_led_intensity": 50,
+    "recording_length_s": 2.1,
+    "recording_hz": 1000,
+    "ared_duration_s": 2.0,
+    "wait_after_ared_s": 0.002,
+    "agreen_delay_s": 0.1,
+    "agreen_duration_s": 2.0,
+    "channel_range": 50,
+    "filename": "D:\\repos\\FluorInduc\\data\\test_1.csv",
+    "event_logger": [
+        {
+            "time_s": 0.0,
+            "label": "protocol_start"
+        },
+        {
+            "time_s": 0.006019,
+            "label": "test_shutter_opening"
+        },
+        {
+            "time_s": 0.006203,
+            "label": "test_shutter_opened"
+        },
+        {
+            "time_s": 0.006384,
+            "label": "test_shutter_closed"
+        },
+        {
+            "time_s": 0.00639,
+            "label": "creating_timed_action_factory"
+        },
+        {
+            "time_s": 0.006402,
+            "label": "preparing_recorder"
+        },
+        {
+            "time_s": 0.006404,
+            "label": "setup_recording"
+        },
+        {
+            "time_s": 0.007242,
+            "label": "recorder_prepared"
+        },
+        {
+            "time_s": 0.007537,
+            "label": "data_available_at_sample_1"
+        },
+        {
+            "time_s": 0.007538,
+            "label": "recorder_wait_for_data_start_complete"
+        },
+        {
+            "time_s": 0.007539,
+            "label": "ared_on"
+        },
+        {
+            "time_s": 0.010272,
+            "label": "ared_on_for_2.000_seconds"
+        },
+        {
+            "time_s": 2.010883,
+            "label": "start_buffer_flush"
+        },
+        {
+            "time_s": 2.011314,
+            "label": "recording_loop_started"
+        },
+        {
+            "time_s": 2.014109,
+            "label": "action_ared_off_executed_at_0.000_s"
+        },
+        {
+            "time_s": 2.016649,
+            "label": "action_wait_after_ared_executed_at_0.002_s"
+        },
+        {
+            "time_s": 2.016999,
+            "label": "action_shutter_opened_executed_at_0.002_s"
+        },
+        {
+            "time_s": 2.019585,
+            "label": "action_agreen_on_executed_at_0.004_s"
+        },
+        {
+            "time_s": 4.017714,
+            "label": "action_agreen_off_executed_at_2.004_s"
+        },
+        {
+            "time_s": 4.017759,
+            "label": "action_end_recording_executed_at_2.004_s"
+        },
+        {
+            "time_s": 4.017762,
+            "label": "recording_completed"
+        },
+        {
+            "time_s": 4.018077,
+            "label": "shutter_closed_after_recording"
+        },
+        {
+            "time_s": 4.018077,
+            "label": "protocol_complete"
+        }
+    ]
+}

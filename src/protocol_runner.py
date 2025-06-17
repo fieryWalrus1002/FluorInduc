@@ -1,17 +1,15 @@
 from src.io_controller import IOController
 from src.recorder import Recorder
 from src.experiment_config import ExperimentConfig
+from src.timed_action_factory import TimedActionFactory
 import time
+from src.constants import ANALOG_IN_CHANNEL, DELAY_BEFORE_RECORDING_START
 
-# If I set this value, I get the calculated actinic period based on the event logger:
-# So we can reliably get to within 1ms of the expected time.
-# 0.035 - 0.999s, 1.000s, 0.999s, 0.999s
 
 class ProtocolRunner:
     def __init__(self, io: IOController, recorder: Recorder):
         self.io = io
         self.recorder = recorder
-        self.time_it_takes_to_start_recording = 0.035 # delay between calling complete_recording and the start of the recording loop
 
     @staticmethod
     def calculate_sample_number_for_action(action_time, hz_acq=1000000):
@@ -61,7 +59,7 @@ class ProtocolRunner:
         # Ensure we have at least 1 sample to record
         return max(n_samples, 1)
 
-    def run_protocol(self, cfg: ExperimentConfig, debug: bool = False) -> str:
+    def run_protocol(self, cfg: ExperimentConfig, factory: TimedActionFactory = None, debug: bool = False) -> str:
         """
         Runs the revised LED + shutter + recording protocol with specified timing.
         All durations are in milliseconds.
@@ -102,37 +100,28 @@ class ProtocolRunner:
         n_samples = self.calculate_samples_from_config(cfg)
 
         # set up the actions that will be taken during recording
-        # Calculate the sample numbers for the actions based on the recording frequency
-        # As checking the time in the loop is not accurate enough, we will use sample numbers
-        # and then record the time of the action in the event logger to verify the timing
-        ared_off_sample = 0
-        wait_after_ared_sample = int(cfg.wait_after_ared_s * cfg.recording_hz)
-        shutter_open_sample = wait_after_ared_sample + int(0.002 * cfg.recording_hz)
-        agreen_on_sample = shutter_open_sample
+        if factory is None:
+            # If no factory is provided, create a new one
+            logger.log_event("creating_timed_action_factory")
+            stop_flag = {"stop": False}
+            factory = TimedActionFactory(self.io, cfg, stop_flag)
+        else:
+            logger.log_event("using_existing_timed_action_factory")
 
         actions = [
-            (ared_off_sample,
-            lambda: self.io.set_led_intensity("red", 0),
-            "ared_off"),
-            
-            (wait_after_ared_sample,
-            lambda: time.sleep(cfg.wait_after_ared_s),
-            "wait_after_ared"),
-            
-            (shutter_open_sample,
-            lambda: self.io.toggle_shutter(True),
-            "shutter_opened"),
-            
-            (agreen_on_sample,
-            lambda: self.io.set_led_intensity("green", cfg.measurement_led_intensity),
-            "agreen_on"),
+            factory.make_ared_off(),
+            factory.make_wait_after_ared(),
+            factory.make_shutter_opened(),
+            factory.make_agreen_on(),
+            factory.make_agreen_off(),
+            factory.end_recording()
         ]
 
         # Prepare recording now that we know how many samples we will record
         logger.log_event("preparing_recorder")
         self.recorder.prepare_recording(
             logger=logger,
-            channel=0,
+            channel=ANALOG_IN_CHANNEL,
             n_samples=n_samples,
             hz_acq=cfg.recording_hz,
             channel_range=cfg.channel_range,
@@ -148,20 +137,19 @@ class ProtocolRunner:
         # turn on the actinic LED. We'll switch it off after the recording starts
         logger.log_event("ared_on")
         self.io.set_led_intensity("red", cfg.actinic_led_intensity)
-        remaining_time = cfg.ared_duration_s - self.time_it_takes_to_start_recording
-        logger.log_event(f"ared_on_for_{remaining_time:.3f}_seconds")
-        time.sleep(remaining_time if remaining_time > 0 else 0)  # wait for the actinic LED to be on for the specified duration
+        logger.log_event(f"ared_on_for_{cfg.ared_duration_s:.3f}_seconds")
+        
+        # wait for the actinic LED to be on for the specified duration
+        time.sleep(
+            cfg.ared_duration_s if cfg.ared_duration_s > 0 else 0
+        )  # wait for the actinic LED to be on for the specified duration
 
         # Record and apply timed actions
-        samples, n, lost, corrupted = self.recorder.complete_recording(actions=actions, debug=debug)
+        samples, n, lost, corrupted, debug_messages = self.recorder.complete_recording(actions=actions, stop_flag=stop_flag, debug=debug)
 
         # Close shutter
         self.io.toggle_shutter(False)
         logger.log_event("shutter_closed_after_recording")
-
-        # Turn off Agreen, after recording is complete
-        self.io.set_led_intensity("green", 0)
-        logger.log_event("agreen_off_after_recording")
 
         # Log the completion of the protocol
         logger.log_event("protocol_complete")
@@ -173,6 +161,10 @@ class ProtocolRunner:
         self.save_metadata(cfg)
 
         self.io.close_device()
+
+        if debug:
+            for message in debug_messages:
+                print(message)
 
         return f"Protocol completed successfully, saving data to CSV: {cfg.filename}"
 
