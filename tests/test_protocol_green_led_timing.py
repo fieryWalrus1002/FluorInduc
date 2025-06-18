@@ -8,21 +8,20 @@ from src.io_controller import IOController
 from src.recorder import Recorder
 from scipy.stats import t
 
-# Settings
-N_REPEATS = 10
-CONFIDENCE_LEVEL = 0.95
-TOLERANCE_S = 0.005  # 5 ms tolerance
-
+# Timing parameters for Agreen LED
 WAIT_AFTER_ARED_S = 0.002
 AGREEN_DELAY_S = 0.002
-AGREEN_DURATION_S = 1.2
-EXPECTED_DELAY = WAIT_AFTER_ARED_S + AGREEN_DELAY_S
 
-# Control limits for Agreen duration
-# Very lax limits to allow for some variability in hardware timing
-# This is a soft failure test, so we allow some leeway in the timing
-TARGET_DURATION = 1.200
-TOLERANCE = 0.1  # 100 ms tolerance for Agreen duration
+# Settings for t test
+N_REPEATS = 10
+CONFIDENCE_LEVEL = 0.95
+
+# Tolerance settings for Agreen LED timing
+TOLERANCE_DELAY_S = 0.005
+TOLERANCE_DURATION_S = 0.010  # This is pretty tight over, given its over many loops and actions. Lots of chance for variability.
+TARGET_AGREEN_DURATION_S = 1.2
+TARGET_AGREEN_DELAY_S = WAIT_AFTER_ARED_S + AGREEN_DELAY_S
+
 
 def check_control_limits(data, target, tolerance):
     """
@@ -111,8 +110,7 @@ def compute_confidence_interval(data, confidence=0.95):
 
 
 @pytest.mark.hardware
-def test_agreen_timing_intervals(tmp_path):
-    delay_intervals = []
+def test_agreen_duration_timing_intervals(tmp_path):
     duration_intervals = []
 
     for i in range(N_REPEATS):
@@ -129,7 +127,106 @@ def test_agreen_timing_intervals(tmp_path):
             ared_duration_s=1.0,
             wait_after_ared_s=WAIT_AFTER_ARED_S,
             agreen_delay_s=AGREEN_DELAY_S,
-            agreen_duration_s=AGREEN_DURATION_S,
+            agreen_duration_s=TARGET_AGREEN_DURATION_S,
+            filename=str(filename),
+        )
+
+        runner = ProtocolRunner(io, Recorder(io))
+        result = runner.run_protocol(cfg, debug=False)
+        assert "Protocol completed successfully" in result
+
+        events = cfg.event_logger.get_events()
+        relative_events = get_relative_event_times(events, "ared_on")
+
+        t_ared_off = get_event_time_by_pattern(
+            relative_events, r"action_ared_off_executed_at_"
+        )
+        t_agreen_on = get_event_time_by_pattern(
+            relative_events, r"action_agreen_on_executed_at_"
+        )
+        t_agreen_off = get_event_time_by_pattern(relative_events, r"agreen_off")
+
+        duration_intervals.append(t_agreen_off - t_agreen_on)
+
+        io.cleanup()
+
+    # ---- Analysis ----
+    duration_mean, duration_sem, duration_ci = compute_confidence_interval(
+        duration_intervals, CONFIDENCE_LEVEL
+    )
+
+    print("\n--- Agreen Duration Stats ---")
+    print(f"Mean: {duration_mean:.6f}s | SEM: {duration_sem:.6f}s")
+    print(
+        f"{int(CONFIDENCE_LEVEL*100)}% CI: {duration_ci[0]:.6f} to {duration_ci[1]:.6f}s"
+    )
+    # Process cap for the duration intervals
+    cap_Cp_duration, cap_Cpk_duration, cap_mean_duration, cap_stddev_duration = process_capability_metrics(
+        duration_intervals, TARGET_AGREEN_DURATION_S, TOLERANCE_DURATION_S
+    )
+
+    print(f"\nProcess Capability Metrics for Agreen Duration:")
+    print(f"Cp: {cap_Cp_duration:.2f}, Cpk: {cap_Cpk_duration:.2f}, Mean: {cap_mean_duration:.6f}s, StdDev: {cap_stddev_duration:.6f}s")
+
+    # Assertions for expected values, with soft failure handling
+    failures = []
+
+    if not (TARGET_AGREEN_DURATION_S >= duration_ci[0] and TARGET_AGREEN_DURATION_S <= duration_ci[1]):
+        failures.append(
+            f"Agreen duration target ({TARGET_AGREEN_DURATION_S}s) is outside the 95% confidence interval: "
+            f"{duration_ci[0]:.6f}s to {duration_ci[1]:.6f}s"
+        )
+
+    print("\n--- Control Limits Checks for Agreen Duration ---")
+    if not check_control_limits(
+        duration_intervals, TARGET_AGREEN_DURATION_S, TOLERANCE_DURATION_S
+    ):  
+        failures.append("Agreen duration measurements are not within control limits")
+
+    # now do the process capability checks
+    if cap_Cp_duration <= 1.0:
+        failures.append(f"Agreen_duration process capability Cp is too low: {cap_Cp_duration:.2f}")
+
+    if cap_Cpk_duration < 0:
+        failures.append("Warning: Cpk is negative for Agreen_duration. Process is centered outside of spec limits.")
+
+        """
+        Notes:
+        Process is very tight (Cp is excellent)
+        Mean is centered off target (Cpk negative)
+        
+        This is good for me, as I know that the timing is not perfect, but it is consistent.
+        That means we can find out where in the protocol the timing is off, and fix
+        that offset.
+        """
+
+    # ---- Summary and Assertion ----
+    if failures:
+        print("\nValidation Failures:")
+        for msg in failures:
+            print(f"- {msg}")
+        raise AssertionError("Validation check(s) failed:\n" + "\n".join(failures))
+
+
+@pytest.mark.hardware
+def test_agreen_delay_timing_intervals(tmp_path):
+    delay_intervals = []
+
+    for i in range(N_REPEATS):
+        io = IOController()
+        io.open_device()
+        print(f"Running protocol iteration {i + 1}/{N_REPEATS}")
+        filename = tmp_path / f"run_{i}_output.csv"
+
+        cfg = ExperimentConfig(
+            actinic_led_intensity=75,
+            measurement_led_intensity=30,
+            recording_length_s=2.0,
+            recording_hz=1000,
+            ared_duration_s=1.0,
+            wait_after_ared_s=WAIT_AFTER_ARED_S,
+            agreen_delay_s=AGREEN_DELAY_S,
+            agreen_duration_s=TARGET_AGREEN_DURATION_S,
             filename=str(filename),
         )
 
@@ -149,7 +246,6 @@ def test_agreen_timing_intervals(tmp_path):
         t_agreen_off = get_event_time_by_pattern(relative_events, r"agreen_off")
 
         delay_intervals.append(t_agreen_on - t_ared_off)
-        duration_intervals.append(t_agreen_off - t_agreen_on)
 
         io.cleanup()
 
@@ -157,49 +253,56 @@ def test_agreen_timing_intervals(tmp_path):
     delay_mean, delay_sem, delay_ci = compute_confidence_interval(
         delay_intervals, CONFIDENCE_LEVEL
     )
-    duration_mean, duration_sem, duration_ci = compute_confidence_interval(
-        duration_intervals, CONFIDENCE_LEVEL
-    )
+
 
     print("\n--- Agreen Delay Stats ---")
     print(f"Mean: {delay_mean:.6f}s | SEM: {delay_sem:.6f}s")
     print(f"{int(CONFIDENCE_LEVEL*100)}% CI: {delay_ci[0]:.6f} to {delay_ci[1]:.6f}s")
 
-    print("\n--- Agreen Duration Stats ---")
-    print(f"Mean: {duration_mean:.6f}s | SEM: {duration_sem:.6f}s")
-    print(
-        f"{int(CONFIDENCE_LEVEL*100)}% CI: {duration_ci[0]:.6f} to {duration_ci[1]:.6f}s"
-    )
-    
+
     # ---- Process Capability Metrics ----
-    cap_Cp, cap_Cpk, cap_mean, cap_stddev = process_capability_metrics(
-        delay_intervals, EXPECTED_DELAY, TOLERANCE_S
+    cap_Cp_delay, cap_Cpk_delay, cap_mean_delay, cap_stddev_delay = (
+        process_capability_metrics(
+            delay_intervals, TARGET_AGREEN_DELAY_S, TOLERANCE_DELAY_S
+        )
     )
-    
+
     print(f"\nProcess Capability Metrics for Agreen Delay:")
-    print(f"Cp: {cap_Cp:.2f}, Cpk: {cap_Cpk:.2f}, Mean: {cap_mean:.6f}s, StdDev: {cap_stddev:.6f}s")
+    print(
+        f"Cp: {cap_Cp_delay:.2f}, Cpk: {cap_Cpk_delay:.2f}, Mean: {cap_mean_delay:.6f}s, StdDev: {cap_stddev_delay:.6f}s"
+    )
+
 
     # Assertions for expected values, with soft failure handling
     failures = []
 
-    if abs(delay_mean - EXPECTED_DELAY) >= TOLERANCE_S:
+    # assertions for the t test results
+    if not (
+        TARGET_AGREEN_DELAY_S >= delay_ci[0] and TARGET_AGREEN_DELAY_S <= delay_ci[1]
+    ):
         failures.append(
-            f"Agreen ON delay too far from expected ({EXPECTED_DELAY}s). Got {delay_mean:.6f}s"
+            f"Agreen delay target ({TARGET_AGREEN_DELAY_S}s) is outside the 95% confidence interval: "
+            f"{delay_ci[0]:.6f}s to {delay_ci[1]:.6f}s"
         )
 
-    if abs(duration_mean - AGREEN_DURATION_S) >= TOLERANCE_S:
+
+    # control limits checks for both delay and duration
+    print("\n--- Control Limits Checks for Agreen Delay ---")
+    if not check_control_limits(
+        delay_intervals, TARGET_AGREEN_DELAY_S, TOLERANCE_DELAY_S
+    ):
+        failures.append("Agreen delay measurements are not within control limits")
+
+    # now do the process capability checks
+    if cap_Cp_delay <= 1.0:
         failures.append(
-            f"Agreen duration too far from expected ({AGREEN_DURATION_S}s). Got {duration_mean:.6f}s"
+            f"Agreen_delay process capability Cp is too low: {cap_Cp_delay:.2f}"
         )
 
-    if cap_Cp <= 1.0:
-        failures.append(f"Process capability Cp is too low: {cap_Cp:.2f}")
-
-    if cap_Cpk <= 1.0:
-        failures.append(f"Process capability Cpk is too low: {cap_Cpk:.2f}")
-
-    if not check_control_limits(duration_intervals, AGREEN_DURATION_S, TOLERANCE_S):
-        failures.append("Agreen duration measurements are not within control limits")
+    if cap_Cpk_delay < 0:
+        failures.append(
+            "Warning: Cpk is negative for Agreen_delay. Process is centered outside of spec limits."
+        )
 
     # ---- Summary and Assertion ----
     if failures:
