@@ -156,6 +156,8 @@ def test_agreen_duration_timing_intervals(tmp_path):
     )
 
     print("\n--- Agreen Duration Stats ---")
+    print(f"Number of measurements: {len(duration_intervals)}")
+    print(f"Target Agreen Duration: {TARGET_AGREEN_DURATION_S:.6f}s")
     print(f"Mean: {duration_mean:.6f}s | SEM: {duration_sem:.6f}s")
     print(
         f"{int(CONFIDENCE_LEVEL*100)}% CI: {duration_ci[0]:.6f} to {duration_ci[1]:.6f}s"
