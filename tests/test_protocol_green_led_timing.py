@@ -258,9 +258,11 @@ def test_agreen_delay_timing_intervals(tmp_path):
 
 
     print("\n--- Agreen Delay Stats ---")
+    print(f"Number of measurements: {len(delay_intervals)}")
+    print(f"Target Agreen Delay (s): {TARGET_AGREEN_DELAY_S:.6f}s")
     print(f"Mean: {delay_mean:.6f}s | SEM: {delay_sem:.6f}s")
     print(f"{int(CONFIDENCE_LEVEL*100)}% CI: {delay_ci[0]:.6f} to {delay_ci[1]:.6f}s")
-
+    # Process capability metrics for the delay intervals
 
     # ---- Process Capability Metrics ----
     cap_Cp_delay, cap_Cpk_delay, cap_mean_delay, cap_stddev_delay = (
