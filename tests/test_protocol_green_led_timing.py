@@ -18,6 +18,70 @@ AGREEN_DELAY_S = 0.002
 AGREEN_DURATION_S = 1.2
 EXPECTED_DELAY = WAIT_AFTER_ARED_S + AGREEN_DELAY_S
 
+# Control limits for Agreen duration
+# Very lax limits to allow for some variability in hardware timing
+# This is a soft failure test, so we allow some leeway in the timing
+TARGET_DURATION = 1.200
+TOLERANCE = 0.1  # 100 ms tolerance for Agreen duration
+
+def check_control_limits(data, target, tolerance):
+    """
+    Check if the data is within control limits defined by target and tolerance.
+    
+    :param data: list or np.array of measurements
+    :param target: target value for the process
+    :param tolerance: acceptable deviation from the target
+    :return: True if all data points are within limits, False otherwise
+    
+    Prints out the control limits and whether the data is within those limits.
+    """
+    upper_limit = target + tolerance
+    lower_limit = target - tolerance
+    if isinstance(data, list):
+        data = np.array(data)
+
+    within_limits = np.all((data >= lower_limit) & (data <= upper_limit))
+
+    print(f"Control Limits: LCL={lower_limit}, UCL={upper_limit}")
+    print(f"Data within control limits: {within_limits}")
+    
+    if not within_limits:
+        failures = [(i, val) for i, val in enumerate(data) if not (lower_limit <= val <= upper_limit)]
+        print("Out-of-control data points:")
+        for idx, val in failures:
+            print(f"  Index {idx}: {val:.6f} s")
+    else:
+        print("All data points are within control limits.")
+
+    return within_limits
+
+
+def process_capability_metrics(data, target, tolerance):
+    """ Calculate process capability metrics Cp and Cpk.
+    param data: list or np.array of measurements
+    param target: target value for the process
+    param tolerance: acceptable deviation from the target
+    
+    Cp is the process capability index, which measures how well a process can produce output within specified limits.
+    Cpk is the process capability index adjusted for the mean of the process.
+    
+    Good values for Cp and Cpk are typically above 1.33, indicating a capable process.
+    1.0 is the minimum acceptable value, while values above 2.0 indicate an excellent process.
+    
+    Returns Cp, Cpk, mean, and standard deviation of the data.
+    
+    """
+    mean = np.mean(data)
+    stddev = np.std(data, ddof=1)
+
+    USL = target + tolerance
+    LSL = target - tolerance
+
+    Cp = (USL - LSL) / (6 * stddev)
+    Cpk = min((USL - mean), (mean - LSL)) / (3 * stddev)
+
+    return Cp, Cpk, mean, stddev
+
 
 def get_event_time_by_pattern(events, pattern: str):
     compiled = re.compile(pattern)
@@ -106,21 +170,40 @@ def test_agreen_timing_intervals(tmp_path):
     print(
         f"{int(CONFIDENCE_LEVEL*100)}% CI: {duration_ci[0]:.6f} to {duration_ci[1]:.6f}s"
     )
+    
+    # ---- Process Capability Metrics ----
+    cap_Cp, cap_Cpk, cap_mean, cap_stddev = process_capability_metrics(
+        delay_intervals, EXPECTED_DELAY, TOLERANCE_S
+    )
+    
+    print(f"\nProcess Capability Metrics for Agreen Delay:")
+    print(f"Cp: {cap_Cp:.2f}, Cpk: {cap_Cpk:.2f}, Mean: {cap_mean:.6f}s, StdDev: {cap_stddev:.6f}s")
 
-    # green duration is failing, find out why
-    # --- Agreen Delay Stats ---
-    # Mean: 0.017368s | SEM: 0.002168s
-    # 95% CI: 0.012463 to 0.022273s
+    # Assertions for expected values, with soft failure handling
+    failures = []
 
-    # --- Agreen Duration Stats ---
-    # Mean: 1.978831s | SEM: 0.004155s
-    # 95% CI: 1.969431 to 1.988231s
+    if abs(delay_mean - EXPECTED_DELAY) >= TOLERANCE_S:
+        failures.append(
+            f"Agreen ON delay too far from expected ({EXPECTED_DELAY}s). Got {delay_mean:.6f}s"
+        )
 
-    # ---- Assertions ----
-    assert (
-        abs(delay_mean - EXPECTED_DELAY) < TOLERANCE_S
-    ), f"Agreen ON delay too far from expected ({EXPECTED_DELAY}s). Got {delay_mean:.6f}s"
+    if abs(duration_mean - AGREEN_DURATION_S) >= TOLERANCE_S:
+        failures.append(
+            f"Agreen duration too far from expected ({AGREEN_DURATION_S}s). Got {duration_mean:.6f}s"
+        )
 
-    assert (
-        abs(duration_mean - AGREEN_DURATION_S) < TOLERANCE_S
-    ), f"Agreen duration too far from expected ({AGREEN_DURATION_S}s). Got {duration_mean:.6f}s"
+    if cap_Cp <= 1.0:
+        failures.append(f"Process capability Cp is too low: {cap_Cp:.2f}")
+
+    if cap_Cpk <= 1.0:
+        failures.append(f"Process capability Cpk is too low: {cap_Cpk:.2f}")
+
+    if not check_control_limits(duration_intervals, AGREEN_DURATION_S, TOLERANCE_S):
+        failures.append("Agreen duration measurements are not within control limits")
+
+    # ---- Summary and Assertion ----
+    if failures:
+        print("\nValidation Failures:")
+        for msg in failures:
+            print(f"- {msg}")
+        raise AssertionError("Validation check(s) failed:\n" + "\n".join(failures))
