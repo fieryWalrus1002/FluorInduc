@@ -104,7 +104,10 @@ class ProtocolRunner:
         logger.log_event("test_shutter_closed")
 
         n_samples = self.calculate_samples_from_config(cfg)
-
+        logger.log_event(f"total_recording_length: {cfg.recording_length_s:.3f} seconds")
+        logger.log_event(f"recording_hz: {cfg.recording_hz}")
+        logger.log_event(f"n_samples_calculated: {n_samples}")
+        
         # set up the actions that will be taken during recording
         if factory is None:
             # If no factory is provided, create a new one
