@@ -96,7 +96,6 @@ class Recorder:
 
         return start_time
 
-
     def complete_recording(
         self, actions: list["TimedAction"] = None, stop_flag=None, debug=False
     ):
@@ -184,12 +183,14 @@ class Recorder:
                 debug_messages.append(
                     f"Warning: Last sample is 0.0 at index {cSamples - 1}. This may indicate an issue with the recording."
                 )
-                
+
             if cSamples > n_samples * 2:
                 debug_messages.append("Overrun limit reached, forcing stop")
                 break
 
         self.logger.log_event("recording_completed")
+        elapsed_time = time.perf_counter() - start_time
+        self.logger.log_event(f"acquired_{cSamples}_samples_in_{elapsed_time:.3f}_seconds")
 
         print(f"Recorded {cSamples} samples, lost {fLost}, corrupted {fCorrupted}")
         return rgdSamples[:cSamples], cSamples, fLost, fCorrupted, debug_messages

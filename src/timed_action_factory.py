@@ -58,8 +58,8 @@ class TimedActionFactory:
             time_s, lambda: self.io.set_led_voltage(LED_GREEN_PIN, 0), "agreen_off"
         )
 
-    def end_recording(self) -> TimedAction:
-        time_s = self.cfg.wait_after_ared_s + 0.002 + self.cfg.agreen_duration_s
+    def end_recording(self, delay_from_shutter_open: float = 0.002) -> TimedAction:
+        time_s = self.cfg.wait_after_ared_s + delay_from_shutter_open + self.cfg.agreen_duration_s
         if time_s < 0:
             raise ValueError("Time for end recording must be non-negative")
         if time_s > 10:
