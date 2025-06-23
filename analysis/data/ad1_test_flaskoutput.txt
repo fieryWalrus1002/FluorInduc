@@ -1,0 +1,47 @@
+ * Serving Flask app 'app'
+ * Debug mode: on
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 106-801-161
+127.0.0.1 - - [23/Jun/2025 12:22:13] "GET /device_status HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jun/2025 12:22:15] "GET /device_status HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jun/2025 12:22:17] "GET /device_status HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jun/2025 12:22:19] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jun/2025 12:22:19] "GET /static/script.js HTTP/1.1" 304 -
+127.0.0.1 - - [23/Jun/2025 12:22:19] "GET /device_status HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jun/2025 12:22:19] "GET /list_csv_files HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jun/2025 12:22:21] "GET /device_status HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jun/2025 12:22:22] "POST /start_task HTTP/1.1" 200 -
+DWF Version: b'3.23.4'
+Opening first device
+meas_green_intensity: 50, voltage: 1.65V
+actinic_red_intensity: 50, voltage: 2.5V
+Device already opened.
+Setting LED 0 voltage to 0 V
+Setting LED 1 voltage to 0 V
+Confirmed acquisition frequency: 1000.0
+Channel 0 range: 57.985764609420904 V
+Setting LED 0 voltage to 2.5 V
+127.0.0.1 - - [23/Jun/2025 12:22:24] "GET /device_status HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jun/2025 12:22:24] "GET /device_status HTTP/1.1" 200 -
+127.0.0.1 - - [23/Jun/2025 12:22:25] "GET /device_status HTTP/1.1" 200 -
+[ACTION] Executing 'ared_off' at elapsed time 1.001s
+Setting LED 0 voltage to 0 V
+[ACTION] Executing 'wait_after_ared' at elapsed time 1.001s
+[ACTION] Executing 'shutter_opened' at elapsed time 1.001s
+[ACTION] Executing 'agreen_on' at elapsed time 1.001s
+Setting LED 1 voltage to 1.65 V
+127.0.0.1 - - [23/Jun/2025 12:22:27] "GET /device_status HTTP/1.1" 200 -
+[ACTION] Executing 'agreen_off' at elapsed time 2.005s
+Setting LED 1 voltage to 0 V
+[ACTION] Executing 'end_recording' at elapsed time 2.005s
+Recorded 1006 samples, lost 0, corrupted 0
+Closing device...
+Device closed.
+Device is not open. Nothing to close.
+Cleanup complete. Device released.
+Task finished with message: Protocol completed successfully, saving data to CSV: C:\repos\FLuorInduc\data\record.csv
+127.0.0.1 - - [23/Jun/2025 12:22:29] "GET /device_status HTTP/1.1" 200 -
