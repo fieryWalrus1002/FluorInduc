@@ -3,7 +3,7 @@ from src.recorder import Recorder
 from src.experiment_config import ExperimentConfig
 from src.timed_action_factory import TimedActionFactory
 import time
-from src.constants import ANALOG_IN_CHANNEL, DELAY_BEFORE_RECORDING_START
+from src.constants import ANALOG_IN_CHANNEL, DELAY_BEFORE_RECORDING_START, LED_GREEN_PIN, LED_RED_PIN
 
 
 class ProtocolRunner:
@@ -82,12 +82,18 @@ class ProtocolRunner:
 
         """
 
+        # get the green measurement voltage from the intensity
+        meas_green_voltage = self.io.intensity_to_voltage("green", cfg.measurement_led_intensity)
+        actinic_red_voltage = self.io.intensity_to_voltage("red", cfg.actinic_led_intensity)
+        print(f"meas_green_intensity: {cfg.measurement_led_intensity}, voltage: {meas_green_voltage}V")
+        print(f"actinic_red_intensity: {cfg.actinic_led_intensity}, voltage: {actinic_red_voltage}V")
+
         # initialize the IOController
         logger = cfg.event_logger
         logger.start_event("protocol_start")
         self.io.open_device()
-        self.io.set_led_intensity("red", 0)  # actinic channel off
-        self.io.set_led_intensity("green", 0)  # measurement channel off
+        self.io.set_led_voltage(LED_RED_PIN, 0)  # actinic channel off
+        self.io.set_led_voltage(LED_GREEN_PIN, 0)  # measurement channel off
         self.io.toggle_shutter(False)
 
         # do a stupid event logger check of how long it takes to open and close the shutter
@@ -112,7 +118,7 @@ class ProtocolRunner:
             factory.make_ared_off(),
             factory.make_wait_after_ared(),
             factory.make_shutter_opened(),
-            factory.make_agreen_on(),
+            factory.make_agreen_on(voltage=meas_green_voltage),
             factory.make_agreen_off(),
             factory.end_recording()
         ]
@@ -136,9 +142,9 @@ class ProtocolRunner:
 
         # turn on the actinic LED. We'll switch it off after the recording starts
         logger.log_event("ared_on")
-        self.io.set_led_intensity("red", cfg.actinic_led_intensity)
+        self.io.set_led_voltage(LED_RED_PIN, actinic_red_voltage)
         logger.log_event(f"ared_on_for_{cfg.ared_duration_s:.3f}_seconds")
-        
+
         # wait for the actinic LED to be on for the specified duration
         time.sleep(
             cfg.ared_duration_s if cfg.ared_duration_s > 0 else 0

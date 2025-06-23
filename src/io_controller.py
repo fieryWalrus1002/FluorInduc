@@ -71,6 +71,7 @@ class IOController:
             return 0.0 # return 0V for 0% intensity
 
         voltage = min + (max - min) * (intensity / 100.0)
+        
         return voltage
 
     def open_device(self):

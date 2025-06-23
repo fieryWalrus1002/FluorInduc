@@ -112,6 +112,36 @@ async function populateFileList() {
 //     await loadMetadata(filename);
 // }
 
+function generateStaggeredAnnotations(eventLines, yMax, spacingThreshold = 0.01, yStepFraction = 0.02) {
+    // Sort events by time
+    eventLines.sort((a, b) => a.time_s - b.time_s);
+
+    let lastX = -Infinity;
+    let verticalOffset = 0;
+    const yBase = yMax * 1.05;
+    const yStep = yMax * yStepFraction;
+
+    return eventLines.map(event => {
+        if (event.time_s - lastX < spacingThreshold) {
+            verticalOffset += 1;
+        } else {
+            verticalOffset = 0;
+        }
+        lastX = event.time_s;
+
+        return {
+            x: event.time_s,
+            y: yBase + yStep * verticalOffset,
+            text: event.label,
+            showarrow: false,
+            font: { size: 10 },
+            xanchor: 'left',
+            yanchor: 'bottom'
+        };
+    });
+}
+
+
 async function loadPlot() {
     const filename = document.getElementById("file_select").value;
     if (!filename) return;
@@ -151,15 +181,17 @@ async function loadPlot() {
         }
     }));
 
-    const annotations = eventLines.map(event => ({
-        x: event.time_s,
-        y: yMax * 1.05,
-        text: event.label,
-        showarrow: false,
-        font: { size: 10 },
-        xanchor: 'left',
-        yanchor: 'bottom'
-    }));
+    // const annotations = eventLines.map(event => ({
+    //     x: event.time_s,
+    //     y: yMax * 1.05,
+    //     text: event.label,
+    //     showarrow: false,
+    //     font: { size: 10 },
+    //     xanchor: 'left',
+    //     yanchor: 'bottom'
+    // }));
+
+    const annotations = generateStaggeredAnnotations(eventLines, yMax);
 
     Plotly.newPlot('plot', [trace], {
         title: filename,

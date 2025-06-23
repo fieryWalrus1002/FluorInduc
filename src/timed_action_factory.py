@@ -37,9 +37,9 @@ class TimedActionFactory:
         )
 
     def make_agreen_on(
-        self, voltage: float = 0.0, delay_from_shutter_open: float = 0.0
+        self, voltage: float = 0.0, delay_from_shutter_open: float = 0.002
     ) -> TimedAction:
-        time_s = self.cfg.wait_after_ared_s + 0.002  # just after shutter opened
+        time_s = self.cfg.wait_after_ared_s + delay_from_shutter_open
         if voltage < 0 or voltage > 5:
             raise ValueError("Voltage must be between 0 and 5V")
         return TimedAction(
@@ -48,8 +48,8 @@ class TimedActionFactory:
             "agreen_on",
         )
 
-    def make_agreen_off(self) -> TimedAction:
-        time_s = self.cfg.wait_after_ared_s + 0.002 + self.cfg.agreen_duration_s
+    def make_agreen_off(self, delay_from_shutter_open: float = 0.002) -> TimedAction:
+        time_s = self.cfg.wait_after_ared_s + delay_from_shutter_open + self.cfg.agreen_duration_s
         if time_s < 0:
             raise ValueError("Time for Agreen off must be non-negative")
         if time_s > 10:
