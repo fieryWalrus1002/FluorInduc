@@ -14,7 +14,8 @@ from tests.utils import (
     check_control_limits,
     process_capability_metrics,
     compute_confidence_interval,
-    get_event_time_by_pattern
+    get_event_time_by_pattern,
+    pretty_print_events
 )
 
 # Timing parameters for Agreen LED
@@ -63,6 +64,8 @@ def run_protocol_and_extract_events(
 
     events = cfg.event_logger.get_events()
     assert len(events) > 0, "No events recorded during protocol run"
+    
+    pretty_print_events(events)
     return events
 
 
@@ -180,9 +183,12 @@ def analyze_event_interval(
 
 @pytest.mark.hardware
 def test_agreen_duration_is_precise(tmp_path):
-    output_file = output_file = Path(
-        "test_results/agreen_duration_stats.csv"
-    )
+
+    # get the date and time as a "YY-MM-DD" string
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    output_file = Path(f"tests/test_results/{date_str}_agreen_duration_stats_.csv")
     analyze_event_interval(
         tmp_path=tmp_path,
         start_event="action_agreen_on",

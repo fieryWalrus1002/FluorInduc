@@ -49,7 +49,6 @@ class ExperimentConfig:
         else:
             return base_config + "\n  No events logged."
 
-
     @classmethod
     def from_dict(cls, data: dict) -> "ExperimentConfig":
         """Safely populate the config from a dictionary, with validation."""
@@ -85,11 +84,17 @@ class ExperimentConfig:
                 )
 
             # Handle event_logger if present
+            # if "event_logger" in data:
+            #     cfg.event_logger = EventLogger.from_dict(data["event_logger"])
             if "event_logger" in data:
-                cfg.event_logger = EventLogger.from_dict(data["event_logger"])
+                evlog_data = data["event_logger"]
+                if isinstance(evlog_data, EventLogger):
+                    cfg.event_logger = evlog_data
+                elif isinstance(evlog_data, list):  # serialized format
+                    cfg.event_logger = EventLogger.from_dict(evlog_data)
 
             return cfg
-        
+
         except (ValueError, TypeError) as e:
             raise ValueError(f"Invalid input in experiment config: {e}")
 
@@ -113,3 +118,24 @@ class ExperimentConfig:
         return json.dumps(self.to_dict(), indent=indent)
 
 
+    def clone_with(self, **overrides) -> "ExperimentConfig":
+        """
+        Create a copy of the current config with updated fields.
+
+        By default, a new EventLogger is created unless explicitly overridden.
+        """
+        cfg_dict = self.to_dict()
+
+        # Remove event_logger to avoid double-serialization
+        cfg_dict.pop("event_logger", None)
+
+        # Apply overrides
+        cfg_dict.update(overrides)
+
+        # Create a new config instance
+        new_cfg = ExperimentConfig.from_dict(cfg_dict)
+
+        # Use override if specified, else start with a fresh logger
+        new_cfg.event_logger = overrides.get("event_logger", EventLogger())
+
+        return new_cfg

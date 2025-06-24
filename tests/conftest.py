@@ -21,3 +21,4 @@ def pytest_addoption(parser):
         default=False,
         help="Run tests marked as hardware",
     )
+

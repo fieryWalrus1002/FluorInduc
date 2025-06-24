@@ -10,6 +10,8 @@ from src.constants import (
     ANALOG_IN_CHANNEL,
     ANALOG_TRIGGER_STATE,
     ANALOG_RECORD_FOREVER,)
+from typing import Optional, Tuple
+
 
 class Recorder:
     def __init__(self, controller):
@@ -96,6 +98,63 @@ class Recorder:
 
         return start_time
 
+    def _execute_pending_actions(
+        self,
+        actions: list["TimedAction"],
+        t_zero: Optional[float],
+        start_time: float,
+        hz_acq: int,
+        data_index: Optional[int] = None,
+    ) -> Tuple[Optional[float], Optional[int]]:
+        """
+        Check and execute any pending actions based on the current time.
+
+        Returns:
+        - t_zero: updated if initialized
+        - dataIndex: sample index at which t_zero occurred
+        """
+        now = time.perf_counter()
+
+        if t_zero is None and not any(a.label == "ared_on" and a.action_time_s == 0.0 for a in actions):
+            raise RuntimeError("ared_on must be scheduled at 0.0s to initialize t_zero")
+
+        if t_zero is None:
+            for action in actions:
+                if action.label == "ared_on" and action.action_time_s == 0.0:
+                    if action.should_execute(now - start_time):  # this should be true nearly immediately
+                        actual_time = action.execute(logger=self.logger, t_zero=None)
+                        t_zero = actual_time
+                        time_since_start = t_zero - start_time
+                        data_index = int(time_since_start * hz_acq)
+                        self.logger.log_event(
+                            f"t_zero_initialized_from_actual_{action.label}_at_+{time_since_start:.6f}_s"
+                        )
+                    break  # Don't evaluate any other actions until t_zero is defined
+        else:
+            elapsed = now - t_zero
+            for action in actions:
+                if action.should_execute(elapsed):
+                    action.execute(logger=self.logger, t_zero=t_zero)
+
+        return t_zero, data_index            
+            # else:
+        #     t_action = now - t_zero
+
+        # for action in actions:
+        #     if action.should_execute(t_action):
+        #         actual_time = action.execute(logger=self.logger, t_zero=t_zero)
+
+        #         # we start our real timing at the ared_on action, so we set t_zero
+        #         if t_zero is None and action.label == "ared_on":
+        #             t_zero = actual_time
+        #             time_since_start = t_zero - start_time
+        #             if data_index is None:  # Only calculate once
+        #                 data_index = int(time_since_start * hz_acq)
+        #                 self.logger.log_event(
+        #                     f"t_zero_initialized_from_actual_{action.label}_at_+{time_since_start:.6f}_s"
+        #                 )
+        # return t_zero, data_index
+
     def complete_recording(
         self, actions: list["TimedAction"] = None, stop_flag=None, debug=False
     ):
@@ -162,10 +221,6 @@ class Recorder:
 
             if cAvailable.value == 0:
                 continue
-
-            # Adjust available count to not exceed total requested
-            # if cSamples + cAvailable.value > n_samples:
-            #     cAvailable = c_int(n_samples - cSamples)
             remaining = n_samples - cSamples
             if remaining <= 0:
                 self.logger.log_event("max_samples_reached")
@@ -178,24 +233,19 @@ class Recorder:
                 byref(rgdSamples, sizeof(c_double) * cSamples),
                 cAvailable,
             )
-
-            # --- Time-based action trigger ---
+            
             if actions:
-                # Initialize t_zero only once
-                if t_zero is None and actions[0].label == "ared_on":
-                    t_zero = time.perf_counter() + actions[0].action_time_s
-                    # Compute sample index for this moment
-                    time_since_start = t_zero - start_time
-                    dataIndex = int(time_since_start * self.hz_acq)
-                    self.logger.log_event(f"t_zero_defined_at_{t_zero:.6f}_corresponding_to_sample_index_{dataIndex}")
+                updated_t_zero, updated_index = self._execute_pending_actions(
+                    actions=actions, 
+                    t_zero=t_zero, 
+                    start_time=start_time, 
+                    hz_acq=self.hz_acq, 
+                    data_index=dataIndex
+                )
+                if t_zero is None and updated_t_zero is not None:
+                    t_zero = updated_t_zero
+                    dataIndex = updated_index
 
-                t_action = time.perf_counter() - t_zero if t_zero else 0.0
-                for action in actions:
-                    if action.should_execute(t_action):
-                        print(
-                            f"[ACTION] Executing '{action.label}' at t_action={t_action:.3f}s"
-                        )
-                        action.execute(self.logger)
             cSamples += cAvailable.value
 
             # Sanity check for edge cases
@@ -223,11 +273,9 @@ class Recorder:
 
         return trimmed, true_sample_count, fLost, fCorrupted, debug_messages
 
-
     def _get_true_sample_count(self, trimmed, cSamples, dataIndex):
         """Helper to determine the correct number of final samples acquired."""
         return len(trimmed) if dataIndex is not None else cSamples
-
 
     def _trim_samples(self, rgdSamples, dataIndex):
         """
@@ -245,7 +293,7 @@ class Recorder:
         trimmed = rgdSamples[dataIndex:end_index]
         return trimmed, len(trimmed)
 
-    def save_data(self, rgdSamples, hz_acq, start_time: float = None, filename="record.csv"):
+    def save_data(self, rgdSamples, hz_acq, start_time: float = None, filename = None):
         """
         Save the recorded data to a CSV file.
         :param rgdSamples: The recorded samples, as the ctype array.
@@ -255,8 +303,11 @@ class Recorder:
             # If no start time is provided, use 0.0
             start_time = 0.0
 
-        with open(filename, "w") as f:
-            f.write("time,signal\n")
-            for i, value in enumerate(rgdSamples):
-                time_s = start_time + i * (1.0 / hz_acq)
-                f.write(f"{time_s},{value}\n")
+        if filename:
+            with open(filename, "w") as f:
+                f.write("time,signal\n")
+                for i, value in enumerate(rgdSamples):
+                    time_s = start_time + i * (1.0 / hz_acq)
+                    f.write(f"{time_s},{value}\n")
+        else:
+            print("No filename provided, skipping data save.")

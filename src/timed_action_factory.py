@@ -10,8 +10,27 @@ class TimedActionFactory:
     the logic for creating actions that control the LED voltages and shutter states based on
     the provided configuration.
 
-    time zero is "recording_loop_started", which is the time when the recording starts. All
-    other times are relative to this point
+    time zero is "ared_on", which is that first action that is executed
+    in the protocol. All other actions are scheduled relative to this time.
+    We set the t_zero in the Recorder.complete_recording() method when the
+    Recorder has finished executing the "ared_on" action.
+
+    The Recorder will check each loop to see if the current time from t_zero is greater than
+    the action's action_time_s, and if so, it will execute the action's action_fn.
+
+    If an action has already been executed, it will not be executed again.
+
+
+    Timed Action Timeline (relative to t_zero = time of "ared_on"):
+
+    - ared_on          → t_zero + 0.0
+    - ared_off         → t_zero + ared_duration_s
+    - wait_after_ared  → t_zero + ared_duration_s + wait_after_ared_s
+    - shutter_opened   → t_zero + ared_duration_s + wait_after_ared_s
+    - agreen_on        → t_zero + ared_duration_s + wait_after_ared_s + agreen_delay_s
+    - agreen_off       → t_zero + ared_duration_s + wait_after_ared_s + agreen_delay_s + agreen_duration_s
+    - end_recording    → same as agreen_off (with optional small offset)
+
 
     """
 
@@ -27,35 +46,39 @@ class TimedActionFactory:
             label="ared_on",
         )
 
-    def make_ared_off(self) -> TimedAction:
+    def make_ared_off(self, addtl_delay: float = 0.0) -> TimedAction:
         return TimedAction(
-            action_time_s=self.cfg.ared_duration_s,
+            action_time_s=self.cfg.ared_duration_s + addtl_delay,
             action_fn=lambda: self.io.set_led_voltage(LED_RED_PIN, 0),
             label="ared_off"
         )
 
-    def make_wait_after_ared(self) -> TimedAction:
-        delay = self.cfg.ared_duration_s + self.cfg.wait_after_ared_s
+    def make_wait_after_ared(self, addtl_delay: float = 0.0) -> TimedAction:
+        delay = self.cfg.ared_duration_s + self.cfg.wait_after_ared_s + addtl_delay
         return TimedAction(
             action_time_s=delay,
             action_fn=lambda: time.sleep(self.cfg.wait_after_ared_s),
             label="wait_after_ared"
         )
 
-    def make_shutter_opened(self) -> TimedAction:
-        delay = self.cfg.ared_duration_s + self.cfg.wait_after_ared_s
+    def make_shutter_opened(self, addtl_delay: float = 0.0) -> TimedAction:
+        delay = (
+            self.cfg.ared_duration_s
+            + self.cfg.wait_after_ared_s 
+            + addtl_delay
+        )
         return TimedAction(
             action_time_s=delay,
             action_fn=lambda: self.io.toggle_shutter(True),
             label="shutter_opened"
         )
 
-    def make_agreen_on(self, voltage: float = 0.0, delay_from_shutter_open: float = 0.002) -> TimedAction:
+    def make_agreen_on(self, voltage: float = 0.0, addtl_delay: float = 0.0) -> TimedAction:
         delay = (
             self.cfg.ared_duration_s
             + self.cfg.wait_after_ared_s
-            + delay_from_shutter_open
             + self.cfg.agreen_delay_s
+            + addtl_delay
         )
         return TimedAction(
             action_time_s=delay,
@@ -63,11 +86,11 @@ class TimedActionFactory:
             label="agreen_on"
         )
 
-    def make_agreen_off(self, delay_from_shutter_open: float = 0.002) -> TimedAction:
+    def make_agreen_off(self, addtl_delay: float = 0.002) -> TimedAction:
         delay = (
             self.cfg.ared_duration_s
             + self.cfg.wait_after_ared_s
-            + delay_from_shutter_open
+            + addtl_delay
             + self.cfg.agreen_delay_s
             + self.cfg.agreen_duration_s
         )
@@ -77,11 +100,11 @@ class TimedActionFactory:
             label="agreen_off"
         )
 
-    def end_recording(self, delay_from_shutter_open: float = 0.002) -> TimedAction:
+    def end_recording(self, addtl_delay: float = 0.002) -> TimedAction:
         delay = (
             self.cfg.ared_duration_s
             + self.cfg.wait_after_ared_s
-            + delay_from_shutter_open
+            + addtl_delay
             + self.cfg.agreen_delay_s
             + self.cfg.agreen_duration_s
         )

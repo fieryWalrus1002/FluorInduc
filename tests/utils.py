@@ -80,3 +80,10 @@ def compute_confidence_interval(data, confidence=0.95):
     std_err = arr.std(ddof=1) / np.sqrt(len(arr))
     ci = t.interval(confidence, len(arr) - 1, loc=mean, scale=std_err)
     return mean, std_err, ci
+
+
+def pretty_print_events(events):
+    print("----- Events ------")
+    print("time       -     event")
+    for time_point, label in events:
+        print(f"{time_point:.6f}s - {label}")

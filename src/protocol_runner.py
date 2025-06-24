@@ -129,7 +129,11 @@ class ProtocolRunner:
         # #adataclass so does it have that ability already?
 
         metadata = cfg.to_dict()
-        metadata_filename = self.make_json_filename(cfg.filename)
+        
+        if cfg.filename:
+            metadata_filename = self.make_json_filename(cfg.filename)
 
-        with open(metadata_filename, "w") as f:
-            f.write(cfg.to_json())
+            with open(metadata_filename, "w") as f:
+                f.write(cfg.to_json())
+        else:
+            print("No filename provided, metadata not saved.")
