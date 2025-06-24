@@ -19,5 +19,5 @@ class TimedAction:
         if self._executed:
             return  # Prevent repeated calls
         self.action_fn()
-        logger.log_event(f"action_{self.label}_executed_at_{self.action_time_s:.3f}_s")
+        logger.log_event(f"action_{self.label}_executed_at_+{self.action_time_s:.3f}_s")
         self._executed = True

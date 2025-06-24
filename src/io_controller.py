@@ -5,6 +5,7 @@ import sys
 from src.recorder import Recorder
 from src.experiment_config import ExperimentConfig
 import threading
+from src.utils import intensity_to_voltage
 from src.constants import (
     OUTPUT_MASK_ALL,
     PIN_GATE,
@@ -20,6 +21,7 @@ from src.constants import (
     STRING_BUFFER_SIZE,
     ANALOG_IN_CHANNEL,
 )
+
 
 # Uniblitz Model VMM-D1 shutter controller
 # Unit state:
@@ -55,24 +57,6 @@ class IOController:
         self.pin_state = PIN_STATE_ALL_LOW  # Initialize pin state to all low (0b00000000)
         self.output_mask = OUTPUT_MASK_ALL  # Set all pins to output (0b11111111)
 
-        # set the min and max voltage for the two LEDs
-        self.leds = {
-                    "red": {"pin": LED_RED_PIN, "min": 0.0, "max": 5.0},
-                    "green": {"pin": LED_GREEN_PIN, "min": 0.0, "max": 3.3},
-        }
-
-    def intensity_to_voltage(self, led: str, intensity: int = 50) -> float:
-        min = self.leds[led].get("min", 0.0)
-        max = self.leds[led].get("max", 5.0)
-        if not (0 <= intensity <= 100):
-            raise ValueError("Intensity must be between 0 and 100.")
-
-        if intensity <= 0:
-            return 0.0 # return 0V for 0% intensity
-
-        voltage = min + (max - min) * (intensity / 100.0)
-        
-        return voltage
 
     def open_device(self):
         if self.hdwf:
@@ -186,11 +170,9 @@ class IOController:
         if not isinstance(led, str):
             raise TypeError("LED number must be a string.")
 
-        if led not in self.leds:
-            raise ValueError("Invalid LED specified.")  # Only "red" and "green" are valid keys
-
-        voltage = self.intensity_to_voltage(led, intensity)
-        self.set_led_voltage(self.leds[led]["pin"], voltage)
+        voltage = intensity_to_voltage(led, intensity)
+        led_pin = LED_VOLTAGE_RANGES[led]["pin"]
+        self.set_led_voltage(led_pin, voltage)
 
     def set_led_voltage(self, led_number, value):
         """

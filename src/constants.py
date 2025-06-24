@@ -30,8 +30,8 @@ STRING_BUFFER_SIZE = 524
 # define the minimum and maximum voltage ranges when setting intensities for the LEDs
 # This will constrain the min and max current that can be set.
 LED_VOLTAGE_RANGES = {
-    "red": {"min": 0.0, "max": 5.0},
-    "green": {"min": 0.0, "max": 3.3},
+    "red": {"pin": LED_RED_PIN, "min": 0.0, "max": 5.0},
+    "green": {"pin": LED_GREEN_PIN, "min": 0.0, "max": 3.3},
 }
 
 # Analog function generator settings
@@ -39,3 +39,6 @@ ANALOG_OUT_FREQUENCY = 0.0
 ANALOG_OUT_OFFSET = 0.0
 ANALOG_OUT_REPEAT = 1
 ANALOG_OUT_WAIT = 0.0
+
+# Pre-buffer time before the first action is recorded
+PRE_BUFFER_SECONDS = 0.1

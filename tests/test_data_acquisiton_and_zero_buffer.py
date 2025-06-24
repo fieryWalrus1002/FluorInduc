@@ -17,7 +17,6 @@ def test_acquisition_rate_and_zero_buffer(tmp_path):
     cfg = ExperimentConfig(
         actinic_led_intensity=50,
         measurement_led_intensity=0,
-        recording_length_s=2.0,
         recording_hz=1000,
         ared_duration_s=1.0,
         wait_after_ared_s=0.005,
@@ -73,3 +72,5 @@ def test_acquisition_rate_and_zero_buffer(tmp_path):
 
     finally:
         io.cleanup()
+
+# tests\test_data_acquisiton_and_zero_buffer.py

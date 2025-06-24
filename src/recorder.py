@@ -106,7 +106,7 @@ class Recorder:
         """
         sts = c_byte()
         n_samples = self.n_samples
-        max_total_samples = n_samples * 2 # safety buffer
+        max_total_samples = int(n_samples * 4)
         rgdSamples = (c_double * max_total_samples)()
         np_buffer = np.ctypeslib.as_array(rgdSamples)
 
@@ -117,6 +117,11 @@ class Recorder:
         fLost = 0
         fCorrupted = 0
         loopCounter = 0
+
+        # for tracking the time of the first action execution, and the first data point
+        t_zero = None
+        dataIndex = None
+
         debug_messages = []
         if stop_flag is None:
             stop_flag = {"stop": False}
@@ -127,8 +132,11 @@ class Recorder:
         self.flush_input_buffer()
         self.dwf.FDwfAnalogInConfigure(self.hdwf, 0, 1)  # start cleanly
 
-        start_time = time.perf_counter()
-        self.logger.log_event("recording_loop_started")
+        # Wait for hardware to begin acquisition, this is important to ensure the recorder is ready
+        # We won't actually start recording until we call complete_recording,
+        # but we need to wait for the hardware to be ready to start recording
+        start_time = self.wait_for_data_start()       
+        self.logger.log_event(f"recording_loop_started_at_{start_time:.6f}")
 
         while not stop_flag.get("stop", False):
             self.dwf.FDwfAnalogInStatus(self.hdwf, c_int(1), byref(sts))
@@ -156,8 +164,13 @@ class Recorder:
                 continue
 
             # Adjust available count to not exceed total requested
-            if cSamples + cAvailable.value > n_samples:
-                cAvailable = c_int(n_samples - cSamples)
+            # if cSamples + cAvailable.value > n_samples:
+            #     cAvailable = c_int(n_samples - cSamples)
+            remaining = n_samples - cSamples
+            if remaining <= 0:
+                self.logger.log_event("max_samples_reached")
+                break
+            cAvailable = c_int(min(cAvailable.value, remaining))
 
             self.dwf.FDwfAnalogInStatusData(
                 self.hdwf,
@@ -168,14 +181,21 @@ class Recorder:
 
             # --- Time-based action trigger ---
             if actions:
-                elapsed_time = time.perf_counter() - start_time
+                # Initialize t_zero only once
+                if t_zero is None and actions[0].label == "ared_on":
+                    t_zero = time.perf_counter() + actions[0].action_time_s
+                    # Compute sample index for this moment
+                    time_since_start = t_zero - start_time
+                    dataIndex = int(time_since_start * self.hz_acq)
+                    self.logger.log_event(f"t_zero_defined_at_{t_zero:.6f}_corresponding_to_sample_index_{dataIndex}")
+
+                t_action = time.perf_counter() - t_zero if t_zero else 0.0
                 for action in actions:
-                    if action.should_execute(elapsed_time):
+                    if action.should_execute(t_action):
                         print(
-                            f"[ACTION] Executing '{action.label}' at elapsed time {elapsed_time:.3f}s"
+                            f"[ACTION] Executing '{action.label}' at t_action={t_action:.3f}s"
                         )
                         action.execute(self.logger)
-
             cSamples += cAvailable.value
 
             # Sanity check for edge cases
@@ -189,11 +209,41 @@ class Recorder:
                 break
 
         self.logger.log_event("recording_completed")
-        elapsed_time = time.perf_counter() - start_time
-        self.logger.log_event(f"acquired_{cSamples}_samples_in_{elapsed_time:.3f}_seconds")
 
-        print(f"Recorded {cSamples} samples, lost {fLost}, corrupted {fCorrupted}")
-        return rgdSamples[:cSamples], cSamples, fLost, fCorrupted, debug_messages
+        # Final logging
+        elapsed_time = time.perf_counter() - start_time
+
+        if dataIndex is not None:
+            trimmed, true_sample_count = self._trim_samples(rgdSamples, dataIndex)
+        else:
+            trimmed = rgdSamples[:cSamples]
+            true_sample_count = self._get_true_sample_count(trimmed, cSamples, dataIndex)
+
+        self.logger.log_event(f"acquired_{true_sample_count}_samples_in_{elapsed_time:.3f}_seconds")
+
+        return trimmed, true_sample_count, fLost, fCorrupted, debug_messages
+
+
+    def _get_true_sample_count(self, trimmed, cSamples, dataIndex):
+        """Helper to determine the correct number of final samples acquired."""
+        return len(trimmed) if dataIndex is not None else cSamples
+
+
+    def _trim_samples(self, rgdSamples, dataIndex):
+        """
+        Return a trimmed view of the sample array starting from dataIndex to dataIndex + n_samples.
+        """
+        end_index = dataIndex + self.n_samples
+        total_len = len(rgdSamples)
+
+        if end_index > total_len:
+            print(
+                f"Warning: end_index {end_index} exceeds rgdSamples length {total_len}. Adjusting to fit."
+            )
+            end_index = total_len
+
+        trimmed = rgdSamples[dataIndex:end_index]
+        return trimmed, len(trimmed)
 
     def save_data(self, rgdSamples, hz_acq, start_time: float = None, filename="record.csv"):
         """

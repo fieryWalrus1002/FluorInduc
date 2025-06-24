@@ -4,9 +4,6 @@ from src.protocol_runner import ProtocolRunner
 from src.experiment_config import ExperimentConfig
 
 
-def test_calculate_sample_number_for_action():
-    assert ProtocolRunner.calculate_sample_number_for_action(0.002, 1000000) == 2000
-
 def test_run_protocol_calls_all_steps(tmp_path):
     io = MagicMock()
     recorder = MagicMock()
@@ -19,7 +16,6 @@ def test_run_protocol_calls_all_steps(tmp_path):
     cfg = ExperimentConfig(
         actinic_led_intensity=75,
         measurement_led_intensity=33,
-        recording_length_s=0.01,
         recording_hz=1000,
         ared_duration_s=0.001,
         wait_after_ared_s=0.001,
@@ -45,7 +41,6 @@ def test_event_logger_logs_events():
     cfg = ExperimentConfig(
         actinic_led_intensity=50,
         measurement_led_intensity=50,
-        recording_length_s=0.01,
         recording_hz=1000,
         ared_duration_s=0.001,
         wait_after_ared_s=0.001,

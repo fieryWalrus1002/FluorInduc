@@ -17,7 +17,6 @@ def test_run_protocol_fails_when_green_duration_exceeds_limit(tmp_path):
     cfg = ExperimentConfig(
         actinic_led_intensity=75,
         measurement_led_intensity=30,
-        recording_length_s=2.0,
         recording_hz=1000,
         ared_duration_s=0.05,
         wait_after_ared_s=0.000,
