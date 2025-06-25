@@ -12,6 +12,8 @@ from tests.timing_utils import (
     summarize_durations,
     export_durations_csv,
     suggest_delay_corrections,
+    summarize_durations_with_jitter_awareness,
+    IntervalSpec
 )
 from pathlib import Path
 from src.timed_action import TimedAction
@@ -44,8 +46,19 @@ class CustomTimedActionFactory(TimedActionFactory):
         return self.get_test_actions(red_voltage, green_voltage, logger=logger)
 
 # constants from measured data
-MEASURED_SHUTTER_OPENING_DURATION = 0.00075  # seconds, time it takes to open the shutter
+MEASURED_SHUTTER_OPENING_DURATION = 0.0008  # seconds, time it takes to open the shutter
+MEASURED_SHUTTER_OPENING_STDDEV = 0.00005  # seconds, standard deviation of shutter opening time
 MEASURED_LED_ON_DURATION = 0.002588  # seconds, time it takes for the Agreen LED to turn
+
+# Combine Multiple Jitter Sources for the Combined Interval
+# For "gap_between_ared_off_and_agreen_on", which includes both:
+#     shutter_opened (0.00005 s)
+#     agreen_on (0.000898 s)
+# combined_jitter = math.sqrt(0.00005**2 + 0.000898**2) ≈ 0.000899
+COMBINED_SHUTTER_AND_AGREEN_STDDEV = 0.000899
+
+# standard deviation of the ARED duration, based on measured data
+ARED_DURATION_STDDEV = 0.002502
 
 # constants for the protocol
 ARED_DURATION = 1.0  # seconds
@@ -62,32 +75,40 @@ WHOLE_PROTOCOL_DURATION = (
     ARED_DURATION + WAIT_AFTER_ARED + AGREEN_DELAY + AGREEN_DURATION
 )
 
-
 # statistical parameters
 N_REPEATS = 10
 CONFIDENCE_LEVEL = 0.95
 EPSILON = 0.0005  # seconds, used to ensure actions are executed with minimal delay
+Z_SCORE_95 = 1.96  # Z-score for 95% confidence level
 
 
-# these are the interval names, the event labels we look for, the expected duration, and
-# the tolerance it is allowed to deviate from the expected duration
 interval_specs = [
-    ("ared_duration", r"ared_on", r"ared_off", ARED_DURATION, 0.01),
-    (
-        "gap_between_ared_off_and_agreen_on",
-        r"ared_off",
-        r"agreen_on",
-        EXPECTED_SHUTTER_OPENING_DURATION + AGREEN_DELAY + MEASURED_LED_ON_DURATION,
-        0.001,
+    IntervalSpec(
+        name="ared_duration",
+        start_label=r"ared_on",
+        end_label=r"ared_off",
+        expected_duration=ARED_DURATION,
+        jitter_stddev=ARED_DURATION_STDDEV,
+        tolerance=0.01,
     ),
-    (
-        "shutter_open_duration",
-        r"ared_off",
-        r"shutter_opened",
-        EXPECTED_SHUTTER_OPENING_DURATION,
-        0.001,
+    IntervalSpec(
+        name="gap_between_ared_off_and_agreen_on",
+        start_label=r"ared_off",
+        end_label=r"agreen_on",
+        expected_duration=EXPECTED_SHUTTER_OPENING_DURATION + MEASURED_LED_ON_DURATION,
+        jitter_stddev=COMBINED_SHUTTER_AND_AGREEN_STDDEV,
+        tolerance=0.001,
+    ),
+    IntervalSpec(
+        name="shutter_open_duration",
+        start_label=r"ared_off",
+        end_label=r"shutter_opened",
+        expected_duration=EXPECTED_SHUTTER_OPENING_DURATION,
+        jitter_stddev=MEASURED_SHUTTER_OPENING_STDDEV,
+        tolerance=0.001,
     ),
 ]
+
 
 # does this need to be a fixture?
 delay_overrides = {
@@ -123,16 +144,18 @@ def collected_durations():
 
     labels = ["ared_on", "ared_off", "agreen_on", "agreen_off", "shutter_opened"]
 
-    durations_by_name = {name: [] for name, *_ in interval_specs}
+    # durations_by_name = {name: [] for name, *_ in interval_specs}
+    durations_by_name = {spec.name: [] for spec in interval_specs}
 
     for i in range(N_REPEATS):
         events = run_protocol_and_extract_all_events(
             tmp_path=TEST_RESULTS_DIR, i=i, config=config, expected_labels=labels, delay_overrides=delay_overrides, factory=custom_factory, io=io
         )
-        # this is throwing an error because it can't ind the event
         intervals = extract_intervals(
-            events, [(name, start, end) for name, start, end, _, _ in interval_specs]
+            events,
+            [(spec.name, spec.start_label, spec.end_label) for spec in interval_specs],
         )
+
         for name, duration in intervals.items():
             durations_by_name[name].append(duration)
 
@@ -144,15 +167,42 @@ def collected_durations():
 
 
 @pytest.mark.hardware
-@pytest.mark.parametrize("name, start, end, expected, tolerance", interval_specs)
+@pytest.mark.parametrize("spec", interval_specs)
 def test_duration_intervals_within_expected_range(
-    name, start, end, expected, tolerance, collected_durations
+    spec: IntervalSpec, collected_durations
 ):
-    durations_by_name = collected_durations[name]
-    print(f"\n==== Interval: {name} ====")
-    summarize_durations(
-        durations_by_name, expected, confidence=CONFIDENCE_LEVEL, tolerance=tolerance
+    durations = collected_durations[spec.name]
+    print(f"\n\n==== Interval: {spec.name} ====")
+
+    summarize_durations_with_jitter_awareness(
+        durations=durations,
+        expected_duration=spec.expected_duration,
+        component_stddev=spec.jitter_stddev,
+        z_score=Z_SCORE_95,
+        confidence=CONFIDENCE_LEVEL,
+        tolerance=spec.tolerance,
     )
+
+
+# @pytest.mark.parametrize("name, start, end, expected, tolerance", interval_specs)
+# def test_duration_intervals_within_expected_range(
+#     name, start, end, expected, tolerance, jitter_stddev, collected_durations
+# ):
+#     durations_by_name = collected_durations[name]
+#     print(f"\n==== Interval: {name} ====")
+#     # summarize_durations(
+#     #     durations_by_name, expected, confidence=CONFIDENCE_LEVEL, tolerance=tolerance
+#     # )
+
+#     summarize_durations_with_jitter_awareness(
+#         durations=durations_by_name,
+#         expected_duration=expected,
+#         component_stddev=jitter_stddev,
+#         z_score=Z_SCORE_95,
+#         confidence=CONFIDENCE_LEVEL,
+#         tolerance=tolerance,
+#     )
+
 
 # ==== Interval: ared_duration ====
 # Durations: [1.003607299993746, 1.0025574000319466, 1.0104857000987977, 1.0045013999333605, 1.0019921000348404, 1.0046015999978408, 1.0028933000285178, 1.0018098000437021, 1.002804199932143, 1.0037614000029862]

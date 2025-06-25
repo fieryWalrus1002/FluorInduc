@@ -15,87 +15,87 @@
             "label": "protocol_start"
         },
         {
-            "time_s": 0.011462,
+            "time_s": 0.004946,
             "label": "total_recording_length: 3.100 seconds"
         },
         {
-            "time_s": 0.011464,
+            "time_s": 0.004948,
             "label": "recording_hz: 1000"
         },
         {
-            "time_s": 0.011465,
+            "time_s": 0.004949,
             "label": "n_samples_calculated: 3100"
         },
         {
-            "time_s": 0.011466,
+            "time_s": 0.004949,
             "label": "using_existing_timed_action_factory"
         },
         {
-            "time_s": 0.011498,
+            "time_s": 0.004973,
             "label": "preparing_recorder"
         },
         {
-            "time_s": 0.011506,
+            "time_s": 0.004978,
             "label": "setup_recording"
         },
         {
-            "time_s": 0.013939,
+            "time_s": 0.006787,
             "label": "recorder_prepared"
         },
         {
-            "time_s": 0.014056,
+            "time_s": 0.006902,
             "label": "start_buffer_flush"
         },
         {
-            "time_s": 1.02407,
-            "label": "data_available_at_sample_8"
+            "time_s": 1.013817,
+            "label": "data_available_at_sample_6"
         },
         {
-            "time_s": 1.024079,
-            "label": "recording_loop_started_at_779057.466963"
+            "time_s": 1.013828,
+            "label": "recording_loop_started_at_781091.614226"
         },
         {
-            "time_s": 1.030048,
+            "time_s": 1.019796,
             "label": "action_ared_on_executed (scheduled=+0.000s)"
         },
         {
-            "time_s": 1.030052,
-            "label": "t_zero_initialized_from_actual_ared_on_at_+1.015125_s"
+            "time_s": 1.0198,
+            "label": "t_zero_initialized_from_actual_ared_on_at_+1.012177_s"
         },
         {
-            "time_s": 2.0296,
+            "time_s": 2.017221,
             "label": "action_ared_off_executed (scheduled=+0.996s)"
         },
         {
-            "time_s": 2.030206,
-            "label": "action_shutter_opened_executed (scheduled=+0.996s, actual=+1.000s, latency=0.004s)"
+            "time_s": 2.017619,
+            "label": "action_shutter_opened_executed (scheduled=+0.996s, actual=+0.998s, latency=0.002s)"
         },
         {
-            "time_s": 2.032476,
-            "label": "action_agreen_on_executed (scheduled=+0.996s, actual=+1.002s, latency=0.006s)"
+            "time_s": 2.01959,
+            "label": "action_agreen_on_executed (scheduled=+0.996s, actual=+1.000s, latency=0.004s)"
         },
         {
-            "time_s": 4.031803,
-            "label": "action_agreen_off_executed (scheduled=+2.996s, actual=+3.002s, latency=0.006s)"
+            "time_s": 4.019056,
+            "label": "action_agreen_off_executed (scheduled=+2.996s, actual=+2.999s, latency=0.003s)"
         },
         {
-            "time_s": 4.051998,
-            "label": "action_end_recording_executed (scheduled=+3.021s, actual=+3.022s, latency=0.001s)"
+            "time_s": 4.040939,
+            "label": "action_end_recording_executed (scheduled=+3.021s, actual=+3.021s, latency=0.000s)"
         },
         {
-            "time_s": 4.052003,
+            "time_s": 4.040943,
             "label": "recording_completed"
         },
         {
-            "time_s": 4.052167,
-            "label": "acquired_3100_samples_in_4.037_seconds"
+            "time_s": 4.041088,
+            "label": "acquired_3100_samples_in_4.033_seconds"
         },
         {
-            "time_s": 4.052698,
+            "time_s": 4.041637,
             "label": "shutter_closed_after_recording"
         },
         {
-            "time_s": 4.052699,
+            "time_s": 4.041639,
             "label": "protocol_complete"
         }
     ]

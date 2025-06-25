@@ -13,7 +13,22 @@ import csv
 from datetime import datetime
 from pathlib import Path
 from scipy.stats import ttest_1samp
-from typing import List, Tuple, Dict
+from typing import List
+from math import sqrt
+import numpy as np
+from scipy.stats import t
+from dataclasses import dataclass
+
+
+@dataclass
+class IntervalSpec:
+    name: str
+    start_label: str
+    end_label: str
+    expected_duration: float
+    jitter_stddev: float
+    tolerance: float
+
 
 def get_event_time_by_pattern(events, pattern: str):
     compiled = re.compile(pattern)
@@ -197,3 +212,50 @@ def export_durations_csv(durations_by_name, path: Path):
         writer.writerow(["Run"] + names)
         for i, row in enumerate(rows):
             writer.writerow([i] + [f"{val:.6f}" for val in row])
+
+
+def summarize_durations_with_jitter_awareness(
+    durations,
+    expected_duration,
+    component_stddev=None,
+    z_score=2.0,
+    confidence=0.95,
+    tolerance=None,
+):
+    arr = np.array(durations)
+    mean = arr.mean()
+    std_dev = arr.std(ddof=1)
+    sem = std_dev / np.sqrt(len(arr))
+    ci = t.interval(confidence, len(arr) - 1, loc=mean, scale=sem)
+
+    print(f"\nDurations: {durations}")
+    print(f"Expected:  {expected_duration:.6f} s")
+    print(f"Mean:      {mean:.6f} s")
+    print(f"Std Dev:   {std_dev:.6f} s")
+    print(f"{int(confidence * 100)}% CI: [{ci[0]:.6f}, {ci[1]:.6f}]")
+
+    if tolerance is not None:
+        print(f"Tolerance: ±{tolerance:.6f} s")
+        assert abs(mean - expected_duration) < tolerance, (
+            f"Mean duration {mean:.6f}s differs from expected {expected_duration:.6f}s "
+            f"beyond allowed tolerance {tolerance:.6f}s"
+        )
+
+    if component_stddev is not None:
+        lower = expected_duration - z_score * component_stddev
+        upper = expected_duration + z_score * component_stddev
+        print(f"Jitter-aware expected range (±{z_score}σ): [{lower:.6f}, {upper:.6f}]")
+        assert lower <= mean <= upper, (
+            f"Observed mean {mean:.6f}s outside expected jitter range "
+            f"[{lower:.6f}, {upper:.6f}]"
+        )
+    else:
+        # fallback to a traditional t-test
+        t_stat, p_value = ttest_1samp(arr, expected_duration)
+        alpha = 1 - confidence
+        print(f"T-statistic: {t_stat:.3f}")
+        print(f"P-value:     {p_value:.4f} (alpha = {alpha:.4f})")
+        assert p_value > alpha, (
+            f"Expected duration {expected_duration:.6f}s rejected by t-test "
+            f"(p = {p_value:.4f}, alpha = {alpha:.4f})"
+        )
