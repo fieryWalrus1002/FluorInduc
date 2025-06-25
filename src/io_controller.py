@@ -50,13 +50,21 @@ class IOController:
         self._stop_event = threading.Event()
         self.hdwf = None # handle for the self.dwf library, set during open_device
         self.dwf = None  # DWF library handle, set during open_device
-        
+
         # Initialize system clock and pins
         self.hzSys = c_double()
         self.pin_mask = PIN_MASK_ALL_OUTPUT  # Set all pins to output (0b11111111)
         self.pin_state = PIN_STATE_ALL_LOW  # Initialize pin state to all low (0b00000000)
         self.output_mask = OUTPUT_MASK_ALL  # Set all pins to output (0b11111111)
 
+    def configure_digital_output(self):
+        # # Enable pins for output
+        self.dwf.FDwfDigitalIOOutputEnableSet(
+            self.hdwf, c_int(self.pin_mask), c_int(self.output_mask)
+        )
+
+        # ensure that the trigger pin is set to high to begin with
+        self.set_pin(PIN_TRIGGER, 1)
 
     def open_device(self):
         if self.hdwf:
@@ -94,11 +102,9 @@ class IOController:
         # set up the clock frequency
         self.dwf.FDwfDigitalOutInternalClockInfo(self.hdwf, byref(self.hzSys))
 
-        # # Enable pins for output
-        self.dwf.FDwfDigitalIOOutputEnableSet(self.hdwf, c_int(self.pin_mask), c_int(self.output_mask))
-
-        # ensure that the trigger pin is set to high to begin with
-        self.set_pin(PIN_TRIGGER, 1)
+        self.configure_digital_output()
+        self.configure_analog_output(LED_RED_PIN)
+        self.configure_analog_output(LED_GREEN_PIN)
 
     def close_device(self):
         """Close the device properly."""
@@ -156,7 +162,6 @@ class IOController:
             self.set_pin(PIN_GATE, 0)
             self.set_pin(PIN_TRIGGER, 1)
 
-
     def set_led_intensity(self, led: str, intensity):
         """
         Set the intensity of a specific LED by converting the intensity percentage to voltage.
@@ -174,7 +179,46 @@ class IOController:
         led_pin = LED_VOLTAGE_RANGES[led]["pin"]
         self.set_led_voltage(led_pin, voltage)
 
+    def configure_analog_output(self, led_pin):
+        self.dwf.FDwfAnalogOutNodeEnableSet(
+            self.hdwf, led_pin, dwfconstants.AnalogOutNodeCarrier, c_bool(True)
+        )
+        self.dwf.FDwfAnalogOutIdleSet(
+            self.hdwf, led_pin, dwfconstants.DwfAnalogOutIdleOffset
+        )
+        self.dwf.FDwfAnalogOutNodeFunctionSet(
+            self.hdwf,
+            led_pin,
+            dwfconstants.AnalogOutNodeCarrier,
+            dwfconstants.funcSquare,
+        )
+        self.dwf.FDwfAnalogOutNodeFrequencySet(
+            self.hdwf, led_pin, dwfconstants.AnalogOutNodeCarrier, c_double(0)
+        )
+        self.dwf.FDwfAnalogOutNodeOffsetSet(
+            self.hdwf, led_pin, dwfconstants.AnalogOutNodeCarrier, c_double(0)
+        )
+        self.dwf.FDwfAnalogOutWaitSet(self.hdwf, led_pin, c_double(0))
+        self.dwf.FDwfAnalogOutRepeatSet(self.hdwf, led_pin, c_int(1))
+        self.dwf.FDwfAnalogOutConfigure(self.hdwf, led_pin, c_bool(True))
+
     def set_led_voltage(self, led_number, value):
+        """
+        Quickly set voltage without reconfiguring analog output, as we did that before.
+        """
+        led_int = int(led_number)
+        if led_int < 0 or led_int > 1:
+            raise ValueError("LED number must be 0 or 1")
+
+        self.dwf.FDwfAnalogOutNodeAmplitudeSet(
+            self.hdwf,
+            led_int,
+            dwfconstants.AnalogOutNodeCarrier,
+            c_double(value),
+        )
+        self.dwf.FDwfAnalogOutConfigure(self.hdwf, led_int, c_bool(True))
+
+    def set_led_voltage_old(self, led_number, value):
         """
         Set the analog output voltage for a specific LED.
         Parameters:
@@ -188,8 +232,6 @@ class IOController:
         led_int = int(led_number)
         if led_int < 0 or led_int > 1:
             raise ValueError("LED number must be between 0 and 1.")
-
-        print(f"Setting LED {led_int} voltage to {value} V")
 
         # Set the analog output to the modulation value
         self.dwf.FDwfAnalogOutNodeEnableSet(
@@ -230,7 +272,6 @@ class IOController:
 
     def cancel_task(self):
         """Signal the task to stop."""
-        print("IOController: Cancellation requested.")
         self._stop_event.set()
 
     def cleanup(self):

@@ -64,15 +64,11 @@ class ProtocolRunner:
             logger.log_event("using_existing_timed_action_factory")
             factory.stop_flag = self.stop_flag  # Ensure the factory uses the same stop flag
 
-        actions = [
-            factory.make_ared_on(voltage=actinic_red_voltage),
-            factory.make_ared_off(),
-            factory.make_wait_after_ared(),
-            factory.make_shutter_opened(),
-            factory.make_agreen_on(voltage=meas_green_voltage),
-            factory.make_agreen_off(),
-            factory.end_recording()
-        ]
+        actions = factory.create_full_protocol(
+            red_voltage=actinic_red_voltage,
+            green_voltage=meas_green_voltage,
+            logger=logger
+        )
 
         # Prepare recording now that we know how many samples we will record
         logger.log_event("preparing_recorder")

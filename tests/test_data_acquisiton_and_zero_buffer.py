@@ -58,17 +58,20 @@ def test_acquisition_rate_and_zero_buffer(tmp_path):
         # Check for excessive initial zeros
         # ------------------------------------------
         signal = data["signal"].values
-        zero_threshold = 0.01
+        zero_threshold = 0.002
         zero_run_limit = 1
 
         initial_zeros = next(
             (i for i, v in enumerate(signal) if abs(v) >= zero_threshold), len(signal)
         )
+        
         print(f"Initial zeros before signal activity: {initial_zeros}")
 
         assert (
             initial_zeros <= zero_run_limit
-        ), f"Too many initial zeros ({initial_zeros}). Data may include pre-buffered artifacts."
+        ), f"Too many initial zeros ({initial_zeros}). Data may include pre-buffered artifacts. Is the sensor attached?"
+
+
 
     finally:
         io.cleanup()

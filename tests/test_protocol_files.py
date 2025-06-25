@@ -31,10 +31,10 @@ def test_run_protocol_creates_output_files(tmp_path):
         actinic_led_intensity=75,
         measurement_led_intensity=30,
         recording_hz=1000,
-        ared_duration_s=0.01,
-        wait_after_ared_s=0.005,
-        agreen_delay_s=0.005,
-        agreen_duration_s=0.02,
+        ared_duration_s=0.5,
+        wait_after_ared_s=0.0,
+        agreen_delay_s=0.0,
+        agreen_duration_s=0.5,
         filename=str(filename),
     )
 
@@ -75,10 +75,10 @@ def test_run_protocol_creates_output_files(tmp_path):
         )
 
         # match action events that should be present in the recorded data
-        assert_label_matches(labels, r"action_ared_on")
-        assert_label_matches(labels, r"action_ared_off_executed_at_")
-        assert_label_matches(labels, r"action_agreen_on_executed_at_")
-        assert_label_matches(labels, r"action_shutter_opened_executed_at_")
+        assert_label_matches(labels, r"ared_on")
+        assert_label_matches(labels, r"ared_off")
+        assert_label_matches(labels, r"agreen_on")
+        assert_label_matches(labels, r"shutter_opened")
 
     finally:
         io.cleanup()

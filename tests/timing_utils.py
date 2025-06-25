@@ -13,7 +13,7 @@ import csv
 from datetime import datetime
 from pathlib import Path
 from scipy.stats import ttest_1samp
-
+from typing import List, Tuple, Dict
 
 def get_event_time_by_pattern(events, pattern: str):
     compiled = re.compile(pattern)
@@ -27,7 +27,6 @@ def get_event_time_by_pattern(events, pattern: str):
         print(f"  - {label}")
 
     raise AssertionError(f"No event label matched the pattern: '{pattern}'")
-
 
 
 def suggest_delay_corrections(current_overrides, durations_by_name, expected_values):
@@ -77,8 +76,25 @@ def extract_intervals(events, interval_specs):
     return results
 
 
-def run_protocol_and_extract_all_events(tmp_path, i, config: ExperimentConfig, delay_overrides: dict = None):
-    io = IOController()
+def run_protocol_and_extract_all_events(
+    tmp_path, 
+    i,
+    config: ExperimentConfig,
+    expected_labels: List[str] = None,
+    delay_overrides: dict = None,
+    factory: TimedActionFactory = None,
+    io: IOController = None
+):
+    
+    
+    own_io = False
+    if io is None:
+        io = IOController()
+        print("Created new IOController instance")
+        own_io = True
+    else:
+        print("Using provided IOController instance")
+        
     io.open_device()
 
     # Ensure filename is unique per run
@@ -91,7 +107,8 @@ def run_protocol_and_extract_all_events(tmp_path, i, config: ExperimentConfig, d
         for key, value in delay_overrides.items():
             print(f"  {key}: {value:.6f} seconds")
 
-    factory = TimedActionFactory(io, cfg, delay_overrides=delay_overrides)
+    factory = factory or TimedActionFactory(io, cfg, delay_overrides=delay_overrides)
+    print(f"Using factory: {factory.__class__.__name__}")
     factory.print_timeline()
 
     runner = ProtocolRunner(io, Recorder(io))
@@ -100,22 +117,25 @@ def run_protocol_and_extract_all_events(tmp_path, i, config: ExperimentConfig, d
 
     events = cfg.event_logger.get_events()
 
-    labels = [
-        "ared_on",
-        "ared_off",
-        "wait_after_ared",
-        "shutter_opened",
-        "agreen_on",
-        "agreen_off",
-        "end_recording",
-    ]
-    missing = [label for label in labels if not any(label in e for _, e in events)]
+    if not expected_labels:
+        expected_labels = [
+            "ared_on",
+            "ared_off",
+            "wait_after_ared",
+            "shutter_opened",
+            "agreen_on",
+            "agreen_off",
+            "end_recording",
+        ]
+        
+    missing = [label for label in expected_labels if not any(label in e for _, e in events)]
     if missing:
         print("Warning: missing expected labels:", missing)
 
-    print_event_timeline(events, labels)
+    print_event_timeline(events, expected_labels)
 
-    io.cleanup()
+    if own_io:
+        io.cleanup()
     return events
 
 
@@ -157,6 +177,7 @@ def summarize_durations(durations, expected_duration, confidence=0.95, tolerance
             f"Mean duration {mean:.6f}s differs from expected {expected_duration:.6f}s "
             f"beyond allowed tolerance {tolerance:.6f}s"
         )
+        
 
     # Delegate statistical check
     perform_ttest_against_expected(arr, expected_duration, confidence=confidence)

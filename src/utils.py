@@ -1,8 +1,7 @@
 # utils.py
 from src.experiment_config import ExperimentConfig
 from src.constants import PRE_BUFFER_SECONDS, LED_VOLTAGE_RANGES
-
-
+import time
 
 def calculate_total_recording_length(cfg: ExperimentConfig) -> float:
     """
@@ -60,7 +59,6 @@ def intensity_to_voltage(led: str, intensity: int = 50) -> float:
     - ValueError: If the LED is not recognized or if the intensity is out of range
     """
 
-
     if led not in LED_VOLTAGE_RANGES:
         raise ValueError(f"LED '{led}' is not recognized. Valid options are: {list(LED_VOLTAGE_RANGES.keys())}")
     if not isinstance(intensity, int):
@@ -75,3 +73,9 @@ def intensity_to_voltage(led: str, intensity: int = 50) -> float:
     if voltage < LED_VOLTAGE_RANGES[led]["min"] or voltage > LED_VOLTAGE_RANGES[led]["max"]:
         raise ValueError(f"Calculated voltage {voltage}V is out of range for {led} LED.")
     return voltage
+
+
+def precise_sleep(duration_s):
+    end = time.perf_counter() + duration_s
+    while time.perf_counter() < end:
+        pass

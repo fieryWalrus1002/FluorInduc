@@ -4,6 +4,7 @@ from src.io_controller import IOController
 from src.event_logger import EventLogger
 import time
 from src.constants import LED_RED_PIN, LED_GREEN_PIN, END_RECORDING_OFFSET_DELAY
+from src.utils import precise_sleep
 
 
 class TimedActionFactory:
@@ -33,7 +34,6 @@ class TimedActionFactory:
     Each `make_*()` method returns a TimedAction scheduled at the appropriate time.
     The Recorder is responsible for executing actions when their scheduled time (relative to t_zero) is reached.
     """
-
 
     def __init__(
         self,
@@ -123,21 +123,15 @@ class TimedActionFactory:
     def make_wait_after_ared(self) -> TimedAction:
         return TimedAction(
             action_time_s=self.timeline["wait_after_ared"],
-            action_fn=lambda: time.sleep(self.cfg.wait_after_ared_s),
+            action_fn=lambda: precise_sleep(self.cfg.wait_after_ared_s),
             label="wait_after_ared",
             epsilon=self.cfg.action_epsilon_s
         )
 
     def make_shutter_opened(self) -> TimedAction:
-        def shutter_open():
-            start = time.perf_counter()
-            self.io.toggle_shutter(True)
-            end = time.perf_counter()
-            print(f"[DEBUG] Shutter open took {(end - start)*1000:.3f} ms")
-
         return TimedAction(
             action_time_s=self.timeline["shutter_opened"],
-            action_fn=shutter_open,
+            action_fn= lambda: self.io.toggle_shutter(True),
             label="shutter_opened",
             epsilon=self.cfg.action_epsilon_s
         )
@@ -169,6 +163,37 @@ class TimedActionFactory:
             epsilon=self.cfg.action_epsilon_s
         )
 
+
+    def make_combined_ared_off_and_shutter_opened(self, logger: EventLogger) -> TimedAction:
+        """
+        Create a combined action that turns off the actinic LED and opens the shutter.
+        We need to precisely control the timing here.
+
+        The action should take a total of 0.004 seconds to execute, which includes:
+        - Setting the LED voltage to 0 (off) (done via a nested TimedAction!)
+        - Waiting for the precise duration of `cfg.wait_after_ared_s`
+        - Opening the shutter
+        - waiting variable time until turning on the green LED
+        
+        Recording is being done in the meantime, so we don't need to wait for it. We do need
+        to ensure that the logger is fired RIGHT when the ared_off action is executed, and
+        then this actions main logging will be fired off at the end of the action. 
+        """
+        ared_off_action = lambda: self.make_ared_off().execute(logger)
+
+        action_fn = lambda: (
+            ared_off_action(),
+            precise_sleep(self.cfg.wait_after_ared_s),
+            self.io.toggle_shutter(True),
+            precise_sleep(self.cfg.agreen_delay_s),
+        )
+        return TimedAction(
+            action_time_s=self.timeline["ared_off"],
+            action_fn=action_fn,
+            label="shutter_opened",
+            epsilon=self.cfg.action_epsilon_s,
+        )
+
     def print_timeline(self):
         """
         Print the scheduled execution times of all actions in the timeline
@@ -178,3 +203,22 @@ class TimedActionFactory:
         for label, time_s in sorted(self.timeline.items(), key=lambda item: item[1]):
             print(f"{label:<20} @ +{time_s:.6f} s")
         print("------------------------------------------------------\n")
+
+    def get_production_actions(self, actinic_red_voltage: float, meas_green_voltage: float, logger: EventLogger = None) -> list[TimedAction]:
+        """
+        Get a list of all actions for production.
+        """
+        return [
+            self.make_ared_on(voltage=actinic_red_voltage),
+            self.make_ared_off(),
+            self.make_wait_after_ared(),
+            self.make_shutter_opened(),
+            self.make_agreen_on(voltage=meas_green_voltage),
+            self.make_agreen_off(),
+            self.end_recording()
+        ]
+
+    def create_full_protocol(
+        self, red_voltage: float = 0.0, green_voltage: float = 0.0, logger: EventLogger = None
+    ) -> list[TimedAction]:
+        return self.get_production_actions(red_voltage, green_voltage, logger=logger)

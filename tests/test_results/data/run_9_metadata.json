@@ -3,8 +3,8 @@
     "measurement_led_intensity": 30,
     "recording_hz": 1000,
     "ared_duration_s": 1.0,
-    "wait_after_ared_s": 0.002,
-    "agreen_delay_s": 0.002,
+    "wait_after_ared_s": 0.0,
+    "agreen_delay_s": 0.0,
     "agreen_duration_s": 2.0,
     "channel_range": 2,
     "filename": "D:\\repos\\FluorInduc\\tests\\test_results\\data\\run_9.csv",
@@ -15,91 +15,87 @@
             "label": "protocol_start"
         },
         {
-            "time_s": 0.024953,
-            "label": "total_recording_length: 3.104 seconds"
+            "time_s": 0.006277,
+            "label": "total_recording_length: 3.100 seconds"
         },
         {
-            "time_s": 0.024956,
+            "time_s": 0.00628,
             "label": "recording_hz: 1000"
         },
         {
-            "time_s": 0.024957,
-            "label": "n_samples_calculated: 3104"
+            "time_s": 0.006281,
+            "label": "n_samples_calculated: 3100"
         },
         {
-            "time_s": 0.024957,
+            "time_s": 0.006282,
             "label": "using_existing_timed_action_factory"
         },
         {
-            "time_s": 0.024984,
+            "time_s": 0.006303,
             "label": "preparing_recorder"
         },
         {
-            "time_s": 0.024989,
+            "time_s": 0.006306,
             "label": "setup_recording"
         },
         {
-            "time_s": 0.027292,
+            "time_s": 0.007878,
             "label": "recorder_prepared"
         },
         {
-            "time_s": 0.027329,
+            "time_s": 0.007924,
             "label": "start_buffer_flush"
         },
         {
-            "time_s": 1.039232,
-            "label": "data_available_at_sample_11"
+            "time_s": 1.018621,
+            "label": "data_available_at_sample_8"
         },
         {
-            "time_s": 1.039241,
-            "label": "recording_loop_started_at_699987.717876"
+            "time_s": 1.018643,
+            "label": "recording_loop_started_at_779097.683164"
         },
         {
-            "time_s": 1.053228,
+            "time_s": 1.030748,
             "label": "action_ared_on_executed (scheduled=+0.000s)"
         },
         {
-            "time_s": 1.053238,
-            "label": "t_zero_initialized_from_actual_ared_on_at_+1.025023_s"
+            "time_s": 1.030764,
+            "label": "t_zero_initialized_from_actual_ared_on_at_+1.021948_s"
         },
         {
-            "time_s": 2.06491,
-            "label": "action_ared_off_executed (scheduled=+1.000s, actual=+1.012s, latency=0.012s)"
+            "time_s": 2.030104,
+            "label": "action_ared_off_executed (scheduled=+0.996s)"
         },
         {
-            "time_s": 2.072571,
-            "label": "action_wait_after_ared_executed (scheduled=+1.002s, actual=+1.019s, latency=0.017s)"
+            "time_s": 2.030946,
+            "label": "action_shutter_opened_executed (scheduled=+0.996s, actual=+1.000s, latency=0.004s)"
         },
         {
-            "time_s": 2.073297,
-            "label": "action_shutter_opened_executed (scheduled=+1.002s, actual=+1.020s, latency=0.018s)"
+            "time_s": 2.033304,
+            "label": "action_agreen_on_executed (scheduled=+0.996s, actual=+1.003s, latency=0.007s)"
         },
         {
-            "time_s": 2.085464,
-            "label": "action_agreen_on_executed (scheduled=+1.004s, actual=+1.032s, latency=0.028s)"
+            "time_s": 4.030685,
+            "label": "action_agreen_off_executed (scheduled=+2.996s, actual=+3.000s, latency=0.004s)"
         },
         {
-            "time_s": 4.067847,
-            "label": "action_agreen_off_executed (scheduled=+3.004s, actual=+3.015s, latency=0.011s)"
+            "time_s": 4.051438,
+            "label": "action_end_recording_executed (scheduled=+3.021s, actual=+3.021s, latency=-0.000s)"
         },
         {
-            "time_s": 4.08283,
-            "label": "action_end_recording_executed (scheduled=+3.029s, actual=+3.030s, latency=0.001s)"
-        },
-        {
-            "time_s": 4.082859,
+            "time_s": 4.051443,
             "label": "recording_completed"
         },
         {
-            "time_s": 4.083161,
-            "label": "acquired_3104_samples_in_4.055_seconds"
+            "time_s": 4.051534,
+            "label": "acquired_3100_samples_in_4.043_seconds"
         },
         {
-            "time_s": 4.084699,
+            "time_s": 4.051961,
             "label": "shutter_closed_after_recording"
         },
         {
-            "time_s": 4.084701,
+            "time_s": 4.051962,
             "label": "protocol_complete"
         }
     ]

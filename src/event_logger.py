@@ -4,9 +4,11 @@ import json
 
 
 class EventLogger:
-    def __init__(self):
+    def __init__(self, begin: str = None):
         self._start_time: Optional[float] = None
         self._events: List[Tuple[float, str]] = []
+        if begin:
+            self.start_event(begin)
 
     def start_event(self, label: str = "start"):
         """Marks the beginning of the timeline with an optional label."""

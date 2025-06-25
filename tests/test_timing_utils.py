@@ -61,16 +61,14 @@ def test_summarize_durations_within_ci_passes(capsys):
     assert "Std Dev" in output
 
 def test_summarize_durations_ci_failure_raises():
-    durations = [1.10, 1.11, 1.12, 1.09, 1.13]  # Mean is 1.11, expected is 1.00
+    durations = [1.10, 1.09, 1.11, 1.12, 1.13]  # Mean is 1.11, expected is 1.00
 
     with pytest.raises(AssertionError) as excinfo:
         summarize_durations(durations, expected_duration=1.00, confidence=0.95)
 
     # Check that either of the two assertions could have failed
     msg = str(excinfo.value)
-    assert (
-        "differs from expected" in msg or "not in CI" in msg
-    ), f"Unexpected AssertionError message: {msg}"
+    assert "rejected by t-test" in msg, f"Unexpected AssertionError message: {msg}"
 
 
 ################## actual data extraction tests ##################
