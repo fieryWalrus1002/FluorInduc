@@ -23,6 +23,7 @@ ANALOG_IN_CHANNEL = 0
 ANALOG_TRIGGER_STATE = 0
 ANALOG_RECORD_FOREVER = -1
 DELAY_BEFORE_RECORDING_START = -0.065 # seconds, delay before recording starts
+END_RECORDING_OFFSET_DELAY = 0.025 # small delay added to ensure the green LED is off first, as it was being skipped
 
 # for error message retrieval from C API
 STRING_BUFFER_SIZE = 524 

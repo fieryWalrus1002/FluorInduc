@@ -17,7 +17,7 @@ class WebApiController:
     def run_task(self, cfg: ExperimentConfig):
         try:
             self.io.open_device()
-            runner = ProtocolRunner(self.io, Recorder(self.io))
+            runner = ProtocolRunner(self.io)
             result = runner.run_protocol(cfg)
             self.cleanup()
             return result
@@ -33,8 +33,6 @@ class WebApiController:
         """Cleanup and release the device."""
         self.io.cleanup()
         print("Cleanup complete. Device released.")
-
-
 
 
 if __name__ == "__main__":

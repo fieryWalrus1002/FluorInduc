@@ -130,6 +130,7 @@ class Recorder:
                             f"t_zero_initialized_from_actual_{action.label}_at_+{time_since_start:.6f}_s"
                         )
                     break  # Don't evaluate any other actions until t_zero is defined
+        
         else:
             elapsed = now - t_zero
             for action in actions:

@@ -28,7 +28,9 @@ class TestRecorderActions(unittest.TestCase):
 
         # Fake should_execute to always return True
         mock_action.should_execute = MagicMock(return_value=True)
-        mock_action.execute = MagicMock(side_effect=lambda logger: time.perf_counter())
+        mock_action.execute = MagicMock(
+            side_effect=lambda logger, t_zero=None: time.perf_counter()
+        )
 
         actions = [mock_action]
 
@@ -74,7 +76,7 @@ class TestRecorderActions(unittest.TestCase):
             )
 
         self.assertIn("ared_on must be scheduled at 0.0s", str(cm.exception))
-        
+
     def test_future_actions_skipped_but_valid_ared_on_executes(self):
         recorder = Recorder(controller=MagicMock())
         recorder.logger = EventLogger()
@@ -85,7 +87,9 @@ class TestRecorderActions(unittest.TestCase):
             action_time_s=0.0, action_fn=lambda: None, label="ared_on"
         )
         ared_action.should_execute = MagicMock(return_value=True)
-        ared_action.execute = MagicMock(side_effect=lambda logger: time.perf_counter())
+        ared_action.execute = MagicMock(
+            side_effect=lambda logger, t_zero=None: time.perf_counter()
+        )
 
         # Future action far in the future (won’t trigger)
         future_action = TimedAction(
@@ -107,7 +111,6 @@ class TestRecorderActions(unittest.TestCase):
         self.assertIsNotNone(data_index)
         ared_action.execute.assert_called_once()
         future_action.execute.assert_not_called()
-
 
 
 if __name__ == "__main__":

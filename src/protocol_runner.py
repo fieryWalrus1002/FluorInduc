@@ -7,9 +7,10 @@ from src.constants import ANALOG_IN_CHANNEL, DELAY_BEFORE_RECORDING_START, LED_G
 from src.utils import calculate_samples_from_config, intensity_to_voltage, calculate_total_recording_length
 
 class ProtocolRunner:
-    def __init__(self, io: IOController, recorder: Recorder):
-        self.io = io
-        self.recorder = recorder
+    def __init__(self, io: IOController = None, recorder: Recorder = None):
+        self.io = io or IOController()
+        self.recorder = recorder or Recorder(self.io)
+        self.stop_flag = {"stop": False}
 
     def run_protocol(self, cfg: ExperimentConfig, factory: TimedActionFactory = None, debug: bool = False) -> str:
         """
@@ -47,14 +48,7 @@ class ProtocolRunner:
         self.io.set_led_voltage(LED_RED_PIN, 0)  # actinic channel off
         self.io.set_led_voltage(LED_GREEN_PIN, 0)  # measurement channel off
         self.io.toggle_shutter(False)
-
-        # do a stupid event logger check of how long it takes to open and close the shutter
-        logger.log_event("test_shutter_opening")
-        self.io.toggle_shutter(True)
-        logger.log_event("test_shutter_opened")
-        self.io.toggle_shutter(False)
-        logger.log_event("test_shutter_closed")
-
+        
         # Log the start of the recording loop
         n_samples = calculate_samples_from_config(cfg)
         logger.log_event(f"total_recording_length: {calculate_total_recording_length(cfg):.3f} seconds")
@@ -65,10 +59,10 @@ class ProtocolRunner:
         if factory is None:
             # If no factory is provided, create a new one
             logger.log_event("creating_timed_action_factory")
-            stop_flag = {"stop": False}
-            factory = TimedActionFactory(self.io, cfg, stop_flag)
+            factory = TimedActionFactory(self.io, cfg, self.stop_flag)
         else:
             logger.log_event("using_existing_timed_action_factory")
+            factory.stop_flag = self.stop_flag  # Ensure the factory uses the same stop flag
 
         actions = [
             factory.make_ared_on(voltage=actinic_red_voltage),
@@ -92,7 +86,7 @@ class ProtocolRunner:
         logger.log_event("recorder_prepared")
 
         # Record and apply timed actions
-        samples, n, lost, corrupted, debug_messages = self.recorder.complete_recording(actions=actions, stop_flag=stop_flag, debug=debug)
+        samples, n, lost, corrupted, debug_messages = self.recorder.complete_recording(actions=actions, stop_flag=self.stop_flag, debug=debug)
 
         # Close shutter
         self.io.toggle_shutter(False)
@@ -129,7 +123,7 @@ class ProtocolRunner:
         # #adataclass so does it have that ability already?
 
         metadata = cfg.to_dict()
-        
+
         if cfg.filename:
             metadata_filename = self.make_json_filename(cfg.filename)
 

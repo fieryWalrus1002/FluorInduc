@@ -27,7 +27,7 @@ def test_acquisition_rate_and_zero_buffer(tmp_path):
 
     try:
         io.open_device()
-        runner = ProtocolRunner(io, Recorder(io))
+        runner = ProtocolRunner(io)
         result = runner.run_protocol(cfg, debug=False)
         assert "Protocol completed successfully" in result
 

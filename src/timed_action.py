@@ -6,17 +6,18 @@ import time
 
 
 class TimedAction:
-    def __init__(self, action_time_s: float, action_fn: callable, label: str):
+    def __init__(self, action_time_s: float, action_fn: callable, label: str, epsilon: float = 0.002):
         self.action_time_s = action_time_s
         self.action_fn = action_fn
         self.label = label
+        self.epsilon = epsilon
         self._executed = False
 
         if action_time_s < 0:
             raise ValueError("Action time cannot be negative.")
 
-    def should_execute(self, elapsed_time: float, epsilon: float = 0.002) -> bool:
-        return not self._executed and elapsed_time >= (self.action_time_s - epsilon)
+    def should_execute(self, elapsed_time: float) -> bool:
+        return not self._executed and elapsed_time >= (self.action_time_s - self.epsilon)
 
     # def should_execute(self, elapsed_time: float) -> bool:
     #     return not self._executed and elapsed_time >= self.action_time_s

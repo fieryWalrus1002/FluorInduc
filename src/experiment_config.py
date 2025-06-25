@@ -21,6 +21,7 @@ class ExperimentConfig:
     agreen_duration_s: float = 0.0
     channel_range: int = 2  # Default range for the channel, e.g., 2V
     filename: str = "record.csv"
+    action_epsilon_s: float = 0.001  # Ensure actions are executed with minimal delay
     event_logger: EventLogger = field(default_factory=EventLogger)
 
     # print the configuration in a readable format
@@ -39,6 +40,7 @@ class ExperimentConfig:
             f"  - Sampling Rate: {self.recording_hz:,} Hz\n"
             f"  - Input Range: ±{self.channel_range/2:.1f} V\n"
             f"  - Output File: {os.path.basename(self.filename)}\n"
+            f"  - Action Epsilon: {self.action_epsilon_s:.6f} s\n"
         )
 
         if self.event_logger and self.event_logger.get_events():
@@ -66,6 +68,7 @@ class ExperimentConfig:
             _agreen_duration = float(data.get("agreen_duration_s", 0.0))
             _channel_range = int(data.get("channel_range", 2))    
             _filename = ensure_file_suffix(data.get("filename", "record.csv"))
+            _action_epsilon_s = float(data.get("action_epsilon_s", 0.001))
 
             cfg = cls(
                 actinic_led_intensity=clamp(_actinic_led_intensity, 0, 100),
@@ -80,7 +83,8 @@ class ExperimentConfig:
                 agreen_delay_s=clamp(_agreen_delay_s, 0.0, 10.0),  # max 10 seconds
                 agreen_duration_s=clamp(_agreen_duration, 0.0, 10.0),  # max 10 seconds
                 channel_range=_channel_range,
-                filename=_filename
+                filename=_filename,
+                action_epsilon_s=clamp(_action_epsilon_s, 0.0, 0.1),  # max 100ms epsilon
                 )
 
             # Handle event_logger if present
@@ -109,6 +113,7 @@ class ExperimentConfig:
             "agreen_duration_s": self.agreen_duration_s,
             "channel_range": self.channel_range,
             "filename": self.filename,
+            "action_epsilon_s": self.action_epsilon_s,
             "event_logger": self.event_logger.to_dict() if self.event_logger else None
         }
 
