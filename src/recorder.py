@@ -104,14 +104,14 @@ class Recorder:
         t_zero: Optional[float],
         start_time: float,
         hz_acq: int,
-        data_index: Optional[int] = None,
+        data_index: Tuple[Optional[int], Optional[int]] = None,
     ) -> Tuple[Optional[float], Optional[int]]:
         """
         Check and execute any pending actions based on the current time.
 
         Returns:
         - t_zero: updated if initialized
-        - dataIndex: sample index at which t_zero occurred
+        - dataIndex: sample index at which t_zero occurred, and sample index for the final datapoint
         """
         now = time.perf_counter()
 
@@ -125,36 +125,21 @@ class Recorder:
                         actual_time = action.execute(logger=self.logger, t_zero=None)
                         t_zero = actual_time
                         time_since_start = t_zero - start_time
-                        data_index = int(time_since_start * hz_acq)
+                        data_index = (int(time_since_start * hz_acq), None)
                         self.logger.log_event(
                             f"t_zero_initialized_from_actual_{action.label}_at_+{time_since_start:.6f}_s"
                         )
                     break  # Don't evaluate any other actions until t_zero is defined
-        
+
         else:
             elapsed = now - t_zero
             for action in actions:
                 if action.should_execute(elapsed):
+                    if action.label == "end_recording":
+                        data_index = (data_index[0], int(elapsed * hz_acq)) # mark the final datapoint for our slice before ending the recording
                     action.execute(logger=self.logger, t_zero=t_zero)
 
-        return t_zero, data_index            
-            # else:
-        #     t_action = now - t_zero
-
-        # for action in actions:
-        #     if action.should_execute(t_action):
-        #         actual_time = action.execute(logger=self.logger, t_zero=t_zero)
-
-        #         # we start our real timing at the ared_on action, so we set t_zero
-        #         if t_zero is None and action.label == "ared_on":
-        #             t_zero = actual_time
-        #             time_since_start = t_zero - start_time
-        #             if data_index is None:  # Only calculate once
-        #                 data_index = int(time_since_start * hz_acq)
-        #                 self.logger.log_event(
-        #                     f"t_zero_initialized_from_actual_{action.label}_at_+{time_since_start:.6f}_s"
-        #                 )
-        # return t_zero, data_index
+        return t_zero, data_index
 
     def complete_recording(
         self, actions: list["TimedAction"] = None, stop_flag=None, debug=False
@@ -180,7 +165,8 @@ class Recorder:
 
         # for tracking the time of the first action execution, and the first data point
         t_zero = None
-        dataIndex = None
+        dataIndex = (None, None) # begin index, end index
+        
 
         debug_messages = []
         if stop_flag is None:
@@ -264,12 +250,12 @@ class Recorder:
         # Final logging
         elapsed_time = time.perf_counter() - start_time
 
-        if dataIndex is not None:
-            trimmed, true_sample_count = self._trim_samples(rgdSamples, dataIndex)
-        else:
-            trimmed = rgdSamples[:cSamples]
-            true_sample_count = self._get_true_sample_count(trimmed, cSamples, dataIndex)
-
+        # if dataIndex is not None:
+        #     trimmed, true_sample_count = self._trim_samples(rgdSamples, dataIndex)
+        # else:
+        trimmed = rgdSamples[:cSamples]
+        # true_sample_count = self._get_true_sample_count(trimmed, cSamples, dataIndex)
+        true_sample_count = cSamples
         self.logger.log_event(f"acquired_{true_sample_count}_samples_in_{elapsed_time:.3f}_seconds")
 
         return trimmed, true_sample_count, fLost, fCorrupted, debug_messages

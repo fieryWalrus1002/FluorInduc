@@ -202,6 +202,15 @@ class IOController:
         self.dwf.FDwfAnalogOutRepeatSet(self.hdwf, led_pin, c_int(1))
         self.dwf.FDwfAnalogOutConfigure(self.hdwf, led_pin, c_bool(True))
 
+        self.dwf.FDwfAnalogOutNodeAmplitudeSet(
+            self.hdwf,
+            led_pin,
+            dwfconstants.AnalogOutNodeCarrier,
+            c_double(0.0),
+        )
+        self.dwf.FDwfAnalogOutConfigure(self.hdwf, led_pin, c_bool(True))
+
+
     def set_led_voltage(self, led_number, value):
         """
         Quickly set voltage without reconfiguring analog output, as we did that before.
