@@ -1,0 +1,80 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{datetime}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+
+\pagestyle{fancy}
+\fancyhead[L]{Test Report}
+\fancyhead[R]{\today}
+
+\title{Test Report: Timing Validation of Fluorescence Measurement Protocol}
+\author{Test Engineer: Magnus Wood}
+\date{\today}
+
+\begin{document}
+\maketitle
+\section*{1. Overview}
+\begin{tabular}{@{}ll}
+\textbf{Project Name:} & FluorInduc Timing Validation \\
+\textbf{Test Name:} & Protocol Timing Accuracy and Jitter Tolerance \\
+\textbf{Device Under Test (DUT):} & Fluorescence Measurement Controller v2.3 \\
+\textbf{Test Engineer:} & Magnus Wood \\
+\textbf{Date of Execution:} & \today \\
+\textbf{Test Script Version:} & \texttt{test_timing_validation.py@commit\_9f3bc4d9} \\
+\textbf{Firmware Version:} & v2.4.1 \\
+\end{tabular}
+
+\section*{2. Purpose}
+Verify that hardware event timings (LED activation, shutter operation) conform to expected durations and tolerances defined in the measurement protocol.
+
+\section*{3. Test Environment}
+\begin{itemize}
+  \item Python 3.12 + Pytest + NumPy + SciPy
+  \item Waveform device controlled via IOController (Digilent SDK)
+  \item Logging via EventLogger with \texttt{perf\_counter()} timestamps
+  \item Configuration via \texttt{ExperimentConfig} with N = 10 repeats
+\end{itemize}
+
+\section*{4. Test Cases Summary}
+
+\begin{longtable}{@{}lllll@{}}
+\toprule
+\textbf{Interval} & \textbf{Expected (s)} & \textbf{Mean (s)} & \textbf{95\% CI (s)} & \textbf{Pass/Fail} \\
+\midrule
+ared\_duration & 1.000 & 1.0039 & [1.0021, 1.0057] & \textbf{Fail} \\
+gap\_ared\_agreen & 0.006 & 0.0117 & [0.0090, 0.0143] & \textbf{Fail} \\
+shutter\_open & 0.00075 & 0.00103 & [0.00036, 0.00169] & \textbf{Fail} \\
+\bottomrule
+\end{longtable}
+
+\section*{5. Observations}
+\begin{itemize}
+  \item LED turn-on and shutter opening delays show consistent jitter within ~1ms.
+  \item Total protocol time is longer than specified due to cumulative delays.
+  \item Statistical rejection occurred under 95\% CI + t-test conditions.
+\end{itemize}
+
+\section*{6. Recommendations}
+\begin{itemize}
+  \item Apply delay compensation using `delay_overrides` in `TimedActionFactory`.
+  \item Increase mechanical shutter voltage or replace with faster actuator.
+  \item Re-tune `action_epsilon_s` to absorb small variance.
+\end{itemize}
+
+\section*{7. Sign-Off}
+\vspace{1em}
+\noindent
+\begin{tabular}{ll}
+\textbf{Engineer Signature:} & \rule{5cm}{0.4pt} \\
+\textbf{Name:} & Magnus Wood \\
+\textbf{Date:} & \rule{4cm}{0.4pt} \\
+\\
+\textbf{Reviewer Signature:} & \rule{5cm}{0.4pt} \\
+\textbf{Name:} & \rule{5cm}{0.4pt} \\
+\textbf{Date:} & \rule{4cm}{0.4pt} \\
+\end{tabular}
+
+\end{document}

@@ -1,0 +1,102 @@
+{
+    "actinic_led_intensity": 40,
+    "measurement_led_intensity": 30,
+    "recording_hz": 2000,
+    "ared_duration_s": 0.5,
+    "wait_after_ared_s": 0.0,
+    "agreen_delay_s": 0.0,
+    "agreen_duration_s": 3.0,
+    "channel_range": 50,
+    "filename": "C:\\repos\\FLuorInduc\\data\\arab_1_3_g30.csv",
+    "action_epsilon_s": 0.001,
+    "event_logger": [
+        {
+            "time_s": 0.0,
+            "label": "protocol_start"
+        },
+        {
+            "time_s": 0.003475,
+            "label": "total_recording_length: 3.600 seconds"
+        },
+        {
+            "time_s": 0.003477,
+            "label": "recording_hz: 2000"
+        },
+        {
+            "time_s": 0.003477,
+            "label": "n_samples_calculated: 7200"
+        },
+        {
+            "time_s": 0.003478,
+            "label": "creating_timed_action_factory"
+        },
+        {
+            "time_s": 0.0035,
+            "label": "preparing_recorder"
+        },
+        {
+            "time_s": 0.003502,
+            "label": "setup_recording"
+        },
+        {
+            "time_s": 0.004385,
+            "label": "recorder_prepared"
+        },
+        {
+            "time_s": 0.004599,
+            "label": "start_buffer_flush"
+        },
+        {
+            "time_s": 1.012631,
+            "label": "data_available_at_sample_11"
+        },
+        {
+            "time_s": 1.012642,
+            "label": "recording_loop_started_at_250405.221770"
+        },
+        {
+            "time_s": 1.019064,
+            "label": "action_ared_on_executed (scheduled=+0.000s)"
+        },
+        {
+            "time_s": 1.019075,
+            "label": "t_zero_initialized_from_actual_ared_on_at_+1.013952_s"
+        },
+        {
+            "time_s": 1.52288,
+            "label": "action_ared_off_executed (scheduled=+0.500s)"
+        },
+        {
+            "time_s": 1.523527,
+            "label": "action_shutter_opened_executed (scheduled=+0.500s)"
+        },
+        {
+            "time_s": 1.526225,
+            "label": "action_agreen_on_executed (scheduled=+0.500s, actual=+0.507s, latency=0.007s)"
+        },
+        {
+            "time_s": 4.522396,
+            "label": "action_agreen_off_executed (scheduled=+3.500s, actual=+3.503s, latency=0.003s)"
+        },
+        {
+            "time_s": 4.544174,
+            "label": "action_end_recording_executed (scheduled=+3.525s, actual=+3.525s, latency=0.000s)"
+        },
+        {
+            "time_s": 4.544186,
+            "label": "recording_completed"
+        },
+        {
+            "time_s": 4.544571,
+            "label": "acquired_7063_samples_in_4.539_seconds"
+        },
+        {
+            "time_s": 4.545343,
+            "label": "shutter_closed_after_recording"
+        },
+        {
+            "time_s": 4.545345,
+            "label": "protocol_complete"
+        }
+    ]
+}

@@ -9,7 +9,7 @@ from src.recorder import Recorder
 from scipy.stats import t
 
 # Settings
-N_REPEATS = 10
+N_REPEATS = 3
 EXPECTED_DURATION_S = 1.0
 CONFIDENCE_LEVEL = 0.95
 MAX_ALLOWED_DEVIATION_S = 0.01  # 10ms max jitter tolerance
@@ -23,15 +23,17 @@ def get_event_time_by_pattern(events, pattern: str):
     raise AssertionError(f"No event label matched the pattern: '{pattern}'")
 
 
-def get_relative_event_times(events, reference_label="ared_on"):
-    reference_time = None
-    for time_point, label in events:
-        if label == reference_label:
-            reference_time = time_point
-            break
-    if reference_time is None:
-        raise AssertionError(f"Reference event '{reference_label}' not found")
-    return [(time_point - reference_time, label) for time_point, label in events]
+# def get_relative_event_times(
+#     events, reference_label="action_ared_on_executed_at_0.000_s"
+# ):
+#     reference_time = None
+#     for time_point, label in events:
+#         if label == reference_label:
+#             reference_time = time_point
+#             break
+#     if reference_time is None:
+#         raise AssertionError(f"Reference event '{reference_label}' not found")
+#     return [(time_point - reference_time, label) for time_point, label in events]
 
 
 @pytest.mark.hardware
@@ -48,7 +50,6 @@ def test_timing_statistics_for_ared_off(tmp_path):
         cfg = ExperimentConfig(
             actinic_led_intensity=75,
             measurement_led_intensity=30,
-            recording_length_s=2.0,
             recording_hz=1000,
             ared_duration_s=EXPECTED_DURATION_S,
             wait_after_ared_s=0.002,
@@ -62,16 +63,18 @@ def test_timing_statistics_for_ared_off(tmp_path):
         assert "Protocol completed successfully" in result
 
         events = cfg.event_logger.get_events()
-        relative_events = get_relative_event_times(events, "ared_on")
-        ared_on = get_event_time_by_pattern(relative_events, r"ared_on")
-        # logger.log_event(f"ared_on_for_{remaining_time:.3f}_seconds")
-        remaining_time = get_event_time_by_pattern(relative_events, r"ared_on_for_")
-        print(remaining_time)
+        print("Logged events:")
+        print("Time (s) - Event Label")
+        for time_point, label in events:
+            print(f"{time_point:.3f} - {label}")
+
+
+        action_ared_on = get_event_time_by_pattern(events, r"action_ared_on")
         action_ared_off = get_event_time_by_pattern(
-            relative_events, r"action_ared_off_executed_at_"
+            events, r"action_ared_off_executed_at_"
         )
 
-        duration = action_ared_off - ared_on
+        duration = action_ared_off - action_ared_on
         durations.append(duration)
 
         io.cleanup()

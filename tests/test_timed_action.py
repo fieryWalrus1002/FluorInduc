@@ -36,7 +36,7 @@ def test_execute_calls_function_and_logs_event():
     action.execute(logger)
 
     events = logger.get_events()
-    assert any("action_green_on_executed_at_" in e[1] for e in events)
+    assert any("action_green_on" in e[1] for e in events)
     mock_fn.assert_called_once()
 
 

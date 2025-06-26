@@ -179,3 +179,5 @@ dwf_examples/
 
 # datafiles in the data directory
 data/*.*
+
+tests/test_results/*

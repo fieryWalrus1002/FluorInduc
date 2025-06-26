@@ -4,60 +4,13 @@ from src.experiment_config import ExperimentConfig
 from src.timed_action_factory import TimedActionFactory
 import time
 from src.constants import ANALOG_IN_CHANNEL, DELAY_BEFORE_RECORDING_START, LED_GREEN_PIN, LED_RED_PIN
-
+from src.utils import calculate_samples_from_config, intensity_to_voltage, calculate_total_recording_length
 
 class ProtocolRunner:
-    def __init__(self, io: IOController, recorder: Recorder):
-        self.io = io
-        self.recorder = recorder
-
-    @staticmethod
-    def calculate_sample_number_for_action(action_time, hz_acq=1000000):
-        """
-        Calculate the sample number for a given action time based on the acquisition frequency.
-        :param action_time: Time in seconds when the action should be executed.
-        :param hz_acq: Acquisition frequency in Hz.
-        :return: Sample number corresponding to the action time.
-        """
-        return int(action_time * hz_acq)
-
-    @staticmethod
-    def calculate_samples_from_config(cfg: ExperimentConfig):
-        """
-
-        Calculate the number of samples to record based on the configuration.
-        :param cfg: ExperimentConfig object containing recording parameters.
-        :return: Number of samples to record.
-
-        # we need to take into account a few factors:
-        - The requested recording length in seconds from the user
-        - the length of various periods that aren't assumed by the user to be part of the recording,
-            such as the time it takes to open the shutter, turn on the LEDs, etc.
-            These are not part of the recording length in seconds that the user specifies,
-        but are part of the period that we have to measure in order to ensure the timing is correct.
-        - The recording frequency in Hz, which determines how many samples we will record per second.
-
-        So the user thinks that they are recording the following:
-        - start recording, will record for cfg.recording_length_s seconds
-        - for the first cfg.agreen_delay_s seconds, the Agreen LED is off
-        - then at cfg.agreen_delay_s seconds, the Agreen LED is turned on
-        - it stays on for cfg.agreen_duration_s seconds, which might be longer than the recording length?!?
-        - so we need to check that the recording length is long enough to cover the Agreen ON period
-        """
-        # Calculate the total recording length in seconds
-        if (cfg.agreen_duration_s + cfg.agreen_delay_s) > cfg.recording_length_s:
-            raise ValueError(
-                "The Agreen LED duration plus delay exceeds the recording length. "
-                "Please adjust the recording length or the Agreen LED parameters."
-            )
-
-        total_recording_length = cfg.wait_after_ared_s + cfg.recording_length_s
-
-        # Calculate the number of samples based on the recording frequency
-        n_samples = int(total_recording_length * cfg.recording_hz)
-
-        # Ensure we have at least 1 sample to record
-        return max(n_samples, 1)
+    def __init__(self, io: IOController = None, recorder: Recorder = None):
+        self.io = io or IOController()
+        self.recorder = recorder or Recorder(self.io)
+        self.stop_flag = {"stop": False}
 
     def run_protocol(self, cfg: ExperimentConfig, factory: TimedActionFactory = None, debug: bool = False) -> str:
         """
@@ -83,8 +36,8 @@ class ProtocolRunner:
         """
 
         # get the green measurement voltage from the intensity
-        meas_green_voltage = self.io.intensity_to_voltage("green", cfg.measurement_led_intensity)
-        actinic_red_voltage = self.io.intensity_to_voltage("red", cfg.actinic_led_intensity)
+        meas_green_voltage = intensity_to_voltage("green", cfg.measurement_led_intensity)
+        actinic_red_voltage = intensity_to_voltage("red", cfg.actinic_led_intensity)
         print(f"meas_green_intensity: {cfg.measurement_led_intensity}, voltage: {meas_green_voltage}V")
         print(f"actinic_red_intensity: {cfg.actinic_led_intensity}, voltage: {actinic_red_voltage}V")
 
@@ -95,36 +48,27 @@ class ProtocolRunner:
         self.io.set_led_voltage(LED_RED_PIN, 0)  # actinic channel off
         self.io.set_led_voltage(LED_GREEN_PIN, 0)  # measurement channel off
         self.io.toggle_shutter(False)
-
-        # do a stupid event logger check of how long it takes to open and close the shutter
-        logger.log_event("test_shutter_opening")
-        self.io.toggle_shutter(True)
-        logger.log_event("test_shutter_opened")
-        self.io.toggle_shutter(False)
-        logger.log_event("test_shutter_closed")
-
-        n_samples = self.calculate_samples_from_config(cfg)
-        logger.log_event(f"total_recording_length: {cfg.recording_length_s:.3f} seconds")
+        
+        # Log the start of the recording loop
+        n_samples = calculate_samples_from_config(cfg)
+        logger.log_event(f"total_recording_length: {calculate_total_recording_length(cfg):.3f} seconds")
         logger.log_event(f"recording_hz: {cfg.recording_hz}")
         logger.log_event(f"n_samples_calculated: {n_samples}")
-        
+
         # set up the actions that will be taken during recording
         if factory is None:
             # If no factory is provided, create a new one
             logger.log_event("creating_timed_action_factory")
-            stop_flag = {"stop": False}
-            factory = TimedActionFactory(self.io, cfg, stop_flag)
+            factory = TimedActionFactory(self.io, cfg, self.stop_flag)
         else:
             logger.log_event("using_existing_timed_action_factory")
+            factory.stop_flag = self.stop_flag  # Ensure the factory uses the same stop flag
 
-        actions = [
-            factory.make_ared_off(),
-            factory.make_wait_after_ared(),
-            factory.make_shutter_opened(),
-            factory.make_agreen_on(voltage=meas_green_voltage),
-            factory.make_agreen_off(),
-            factory.end_recording()
-        ]
+        actions = factory.create_full_protocol(
+            red_voltage=actinic_red_voltage,
+            green_voltage=meas_green_voltage,
+            logger=logger
+        )
 
         # Prepare recording now that we know how many samples we will record
         logger.log_event("preparing_recorder")
@@ -137,24 +81,8 @@ class ProtocolRunner:
         )
         logger.log_event("recorder_prepared")
 
-        # Wait for hardware to begin acquisition, this is important to ensure the recorder is ready
-        # We won't actually start recording until we call complete_recording,
-        # but we need to wait for the hardware to be ready to start recording
-        self.recorder.wait_for_data_start()
-        logger.log_event("recorder_wait_for_data_start_complete")
-
-        # turn on the actinic LED. We'll switch it off after the recording starts
-        logger.log_event("ared_on")
-        self.io.set_led_voltage(LED_RED_PIN, actinic_red_voltage)
-        logger.log_event(f"ared_on_for_{cfg.ared_duration_s:.3f}_seconds")
-
-        # wait for the actinic LED to be on for the specified duration
-        time.sleep(
-            cfg.ared_duration_s if cfg.ared_duration_s > 0 else 0
-        )  # wait for the actinic LED to be on for the specified duration
-
         # Record and apply timed actions
-        samples, n, lost, corrupted, debug_messages = self.recorder.complete_recording(actions=actions, stop_flag=stop_flag, debug=debug)
+        samples, n, lost, corrupted, debug_messages = self.recorder.complete_recording(actions=actions, stop_flag=self.stop_flag, debug=debug)
 
         # Close shutter
         self.io.toggle_shutter(False)
@@ -163,9 +91,11 @@ class ProtocolRunner:
         # Log the completion of the protocol
         logger.log_event("protocol_complete")
 
-        # we need to get the recording_loop_started time to calculate the time of the actions
-        recording_loop_started_time = logger.get_event_time("recording_loop_started")
-        self.recorder.save_data(samples, cfg.recording_hz, recording_loop_started_time, cfg.filename)
+        # we need to get the action_ared_on_executed_at_+0.000_s, as that is when data is important
+        data_start_time = logger.get_event_time(
+            "action_ared_on_executed_at_+0.000_s"
+        )
+        self.recorder.save_data(samples, cfg.recording_hz, data_start_time, cfg.filename)
 
         self.save_metadata(cfg)
 
@@ -189,7 +119,11 @@ class ProtocolRunner:
         # #adataclass so does it have that ability already?
 
         metadata = cfg.to_dict()
-        metadata_filename = self.make_json_filename(cfg.filename)
 
-        with open(metadata_filename, "w") as f:
-            f.write(cfg.to_json())
+        if cfg.filename:
+            metadata_filename = self.make_json_filename(cfg.filename)
+
+            with open(metadata_filename, "w") as f:
+                f.write(cfg.to_json())
+        else:
+            print("No filename provided, metadata not saved.")

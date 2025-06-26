@@ -1,0 +1,21 @@
+Run,StartEvent,EndEvent,Duration_s
+0,action_agreen_on,agreen_off,1.175720
+1,action_agreen_on,agreen_off,1.195174
+2,action_agreen_on,agreen_off,1.148615
+3,action_agreen_on,agreen_off,1.172352
+4,action_agreen_on,agreen_off,1.181364
+5,action_agreen_on,agreen_off,1.185721
+6,action_agreen_on,agreen_off,1.170644
+7,action_agreen_on,agreen_off,1.174293
+8,action_agreen_on,agreen_off,1.184242
+9,action_agreen_on,agreen_off,1.186700
+
+Stat,Value
+TargetDuration,1.200000
+Mean,1.177482
+StdDev,0.012677
+SEM,0.004009
+CI Lower,1.168414
+CI Upper,1.186551
+Cp,0.26
+Cpk,-0.33

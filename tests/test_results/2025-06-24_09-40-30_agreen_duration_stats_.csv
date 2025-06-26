@@ -1,0 +1,22 @@
+# --- Interval: action_agreen_on → agreen_off ---
+Run,StartEvent,EndEvent,Duration_s
+0,action_agreen_on,agreen_off,1.174081
+1,action_agreen_on,agreen_off,1.193090
+2,action_agreen_on,agreen_off,1.188593
+3,action_agreen_on,agreen_off,1.178308
+4,action_agreen_on,agreen_off,1.159259
+5,action_agreen_on,agreen_off,1.183580
+6,action_agreen_on,agreen_off,1.182421
+7,action_agreen_on,agreen_off,1.182068
+8,action_agreen_on,agreen_off,1.177690
+9,action_agreen_on,agreen_off,1.180415
+
+Stat,Value
+TargetDuration,1.200000
+Mean,1.179951
+StdDev,0.009078
+SEM,0.002871
+CI Lower,1.173456
+CI Upper,1.186445
+Cp,0.37
+Cpk,-0.37

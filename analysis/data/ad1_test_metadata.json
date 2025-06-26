@@ -1,7 +1,6 @@
 {
     "actinic_led_intensity": 50,
     "measurement_led_intensity": 50,
-    "recording_length_s": 2.002,
     "recording_hz": 1000,
     "ared_duration_s": 2.0,
     "wait_after_ared_s": 0.002,
