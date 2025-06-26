@@ -1,0 +1,3 @@
+
+This runs the test with output to the failed_tests.log:
+D:\repos\FluorInduc>pytest -vv --run-hardware > tests/failed_tests.log 2>&1

@@ -5,6 +5,7 @@ import statistics
 from src.io_controller import IOController
 from src.constants import LED_RED_PIN, LED_GREEN_PIN
 
+N_SAMPLES = 1000  # Number of samples to average over for timing
 
 @pytest.fixture(scope="module")
 def io_controller():
@@ -15,7 +16,7 @@ def io_controller():
     io.cleanup()
 
 
-def measure_timing(label, func, *args, n_repeats=30):
+def measure_timing(label, func, *args, n_repeats=100):
     """Utility to time execution of a hardware command."""
     durations = []
     for _ in range(n_repeats):
@@ -33,22 +34,24 @@ def measure_timing(label, func, *args, n_repeats=30):
 def test_io_timing_suite(io_controller):
     """Hardware-in-the-loop test measuring IO timing."""
     print("Running IO timing tests")
-
+    print(f"n= {N_SAMPLES}")
     results = {}
     results["toggle_shutter_on"] = measure_timing(
-        "toggle_shutter(True)", io_controller.toggle_shutter, True
+        "toggle_shutter(True)", io_controller.toggle_shutter, True, n_repeats=N_SAMPLES
     )
     results["toggle_shutter_off"] = measure_timing(
-        "toggle_shutter(False)", io_controller.toggle_shutter, False
+        "toggle_shutter(False)", io_controller.toggle_shutter, False, n_repeats=N_SAMPLES
     )
     results["set_led_voltage_red"] = measure_timing(
-        "set_led_voltage RED", io_controller.set_led_voltage, LED_RED_PIN, 3.3
+        "set_led_voltage RED", io_controller.set_led_voltage, LED_RED_PIN, 3.3, n_repeats=N_SAMPLES
     )
     results["set_led_voltage_green"] = measure_timing(
-        "set_led_voltage GREEN", io_controller.set_led_voltage, LED_GREEN_PIN, 2.5
+        "set_led_voltage GREEN", io_controller.set_led_voltage, LED_GREEN_PIN, 2.5, n_repeats=N_SAMPLES
     )
 
     # Optionally assert timing ranges or export to CSV here
+    
+    
     for label, times in results.items():
         assert all(t > 0 for t in times), f"{label} contains non-positive durations"
 
@@ -75,3 +78,11 @@ def test_io_timing_suite(io_controller):
 # combined_ared_off_and_shutter_opened Mean: 0.002611 s, StdDev: 0.000264 s
 # .Closing device...
 # Device closed.
+
+# 6-26-25
+# Running IO timing tests
+# n= 1000
+# toggle_shutter(True)           Mean: 0.000421 s, StdDev: 0.000051 s
+# toggle_shutter(False)          Mean: 0.000521 s, StdDev: 0.000074 s
+# set_led_voltage RED            Mean: 0.002367 s, StdDev: 0.000294 s
+# set_led_voltage GREEN          Mean: 0.002430 s, StdDev: 0.000413 s

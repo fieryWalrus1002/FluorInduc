@@ -163,7 +163,6 @@ class TimedActionFactory:
             epsilon=self.cfg.action_epsilon_s
         )
 
-
     def make_combined_ared_off_and_shutter_opened(self, logger: EventLogger) -> TimedAction:
         """
         Create a combined action that turns off the actinic LED and opens the shutter.
@@ -194,6 +193,39 @@ class TimedActionFactory:
             epsilon=self.cfg.action_epsilon_s,
         )
 
+    def make_combined_ared_off_and_agreen_on(
+        self, 
+        meas_green_voltage: float,
+        logger: EventLogger
+    ) -> TimedAction:
+        """
+        Create a combined action that turns off the actinic LED and opens the shutter,
+        waits a precise amount of time and then turns on the green LED. We need to precisely control the timing here.
+
+        The action should take a total of 0.006 seconds to execute, which includes:
+        - Setting the LED voltage to 0 (off) (done via a nested TimedAction!)
+        - Waiting for the precise duration of `cfg.wait_after_ared_s`
+        - Opening the shutter
+        - waiting variable time until turning on the green LED
+        - turning on the green LED
+        """
+        ared_off_action = lambda: self.make_ared_off().execute(logger)
+        shutter_opened_action = lambda: self.make_shutter_opened().execute(logger)
+
+        action_fn = lambda: (
+            ared_off_action(),
+            precise_sleep(self.cfg.wait_after_ared_s),
+            shutter_opened_action(),
+            precise_sleep(self.cfg.agreen_delay_s),
+            self.io.set_led_voltage(LED_GREEN_PIN, meas_green_voltage),
+        )
+        return TimedAction(
+            action_time_s=self.timeline["ared_off"],
+            action_fn=action_fn,
+            label="agreen_on",
+            epsilon=self.cfg.action_epsilon_s,
+        )
+
     def print_timeline(self):
         """
         Print the scheduled execution times of all actions in the timeline
@@ -202,21 +234,23 @@ class TimedActionFactory:
         print("\n--- Scheduled Action Timeline (relative to t_zero) ---")
         for label, time_s in sorted(self.timeline.items(), key=lambda item: item[1]):
             print(f"{label:<20} @ +{time_s:.6f} s")
-        print("------------------------------------------------------\n")
+        print("---------------------------\n")
 
     def get_production_actions(self, actinic_red_voltage: float, meas_green_voltage: float, logger: EventLogger = None) -> list[TimedAction]:
         """
         Get a list of all actions for production.
         """
         return [
-            self.make_ared_on(voltage=actinic_red_voltage),
-            self.make_ared_off(),
-            self.make_wait_after_ared(),
-            self.make_shutter_opened(),
-            self.make_agreen_on(voltage=meas_green_voltage),
-            self.make_agreen_off(),
-            self.end_recording()
+        
+            self.make_ared_on(voltage=actinic_red_voltage),  # ared_on
+            self.make_combined_ared_off_and_agreen_on(
+                meas_green_voltage=meas_green_voltage,  # ared_off and agreen_on
+                logger=logger
+            ),  # ared_off and agreen_on
+            self.make_agreen_off(),  # agreen_off
+            self.end_recording(),  # end_recording
         ]
+
 
     def create_full_protocol(
         self, red_voltage: float = 0.0, green_voltage: float = 0.0, logger: EventLogger = None

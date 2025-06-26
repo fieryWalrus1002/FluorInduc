@@ -21,13 +21,73 @@ from dataclasses import dataclass
 
 
 @dataclass
+class MeasuredDuration:
+    """
+    Represents a previous measurement of an action's execution time and its standard deviation.
+    This is used to calculate the expected duration of an action in the protocol.
+    """
+
+    label: str
+    duration: float  # in seconds
+    stddev: float  # in seconds
+    n_repeats: int  # number of measurements taken, not really used?
+
+    def __add__(self, other):
+        if not isinstance(other, MeasuredDuration):
+            return NotImplemented
+
+        combined_label = f"{self.label} + {other.label}"
+        combined_duration = self.duration + other.duration
+        combined_stddev = sqrt(self.stddev**2 + other.stddev**2)
+
+        return MeasuredDuration(
+            label=combined_label,
+            duration=combined_duration,
+            stddev=combined_stddev,
+            n_repeats=min(self.n_repeats, other.n_repeats),
+        )
+
+    def confidence_interval(self, confidence_level=0.95):
+        """
+        Returns the confidence interval as (lower_bound, upper_bound) using Student's t-distribution.
+        """
+        if self.n_repeats < 2:
+            raise ValueError(
+                "At least two measurements are required for confidence interval calculation."
+            )
+
+        # Degrees of freedom
+        df = self.n_repeats - 1
+
+        # Standard error of the mean (SEM)
+        sem = self.stddev / sqrt(self.n_repeats)
+
+        # t-score for the given confidence level
+        t_score = t.ppf((1 + confidence_level) / 2.0, df)
+
+        margin = t_score * sem
+
+        return (self.duration - margin, self.duration + margin)
+
+    def __str__(self):
+        return (
+            f"{self.label}: {self.duration:.6f} s\n"
+            f"StdDev: {self.stddev:.6f} s\n"
+            f"n_repeats: {self.n_repeats}"
+        )
+
+@dataclass
 class IntervalSpec:
     name: str
     start_label: str
     end_label: str
-    expected_duration: float
-    jitter_stddev: float
-    tolerance: float
+    measured: MeasuredDuration
+    tolerance: float | None = None
+
+
+def get_t_score(confidence: float, sample_size: int) -> float:
+    dof = sample_size - 1
+    return t.ppf(1 - (1 - confidence) / 2, dof)
 
 
 def get_event_time_by_pattern(events, pattern: str):
@@ -71,8 +131,11 @@ def print_event_timeline(events, labels):
 
     t_zero = times["ared_on"]
 
+    # Sort labels by event time
+    sorted_labels = sorted(labels, key=lambda lbl: times[lbl])
+
     print("\n--- Recorded Event Times (relative to t_zero = ared_on) ---")
-    for label in labels:
+    for label in sorted_labels:
         delta = times[label] - t_zero
         print(f"{label:<20} @ raw={times[label]:.6f}, delta={delta:.6f} s")
     print("------------------------------------------------------------\n")
@@ -124,7 +187,7 @@ def run_protocol_and_extract_all_events(
 
     factory = factory or TimedActionFactory(io, cfg, delay_overrides=delay_overrides)
     print(f"Using factory: {factory.__class__.__name__}")
-    factory.print_timeline()
+    # factory.print_timeline()
 
     runner = ProtocolRunner(io, Recorder(io))
     result = runner.run_protocol(cfg, factory=factory, debug=False)
@@ -215,24 +278,37 @@ def export_durations_csv(durations_by_name, path: Path):
 
 
 def summarize_durations_with_jitter_awareness(
+    name: str,
     durations,
-    expected_duration,
-    component_stddev=None,
-    z_score=2.0,
-    confidence=0.95,
-    tolerance=None,
+    expected_duration: float,
+    component_stddev: float = None,
+    confidence: float = 0.95,
+    tolerance: float = None,
 ):
     arr = np.array(durations)
     mean = arr.mean()
     std_dev = arr.std(ddof=1)
     sem = std_dev / np.sqrt(len(arr))
-    ci = t.interval(confidence, len(arr) - 1, loc=mean, scale=sem)
+
+    # confidence interval
+    dof = len(arr) - 1
+    t_score = t.ppf(1 - (1 - confidence) / 2, dof)
+    ci_low = mean - t_score * sem
+    ci_high = mean + t_score * sem
+
+    # Jitter-aware confidence range
+    jitter_margin = t_score * component_stddev
+    lower_bound = expected_duration - jitter_margin
+    upper_bound = expected_duration + jitter_margin
 
     print(f"\nDurations: {durations}")
     print(f"Expected:  {expected_duration:.6f} s")
     print(f"Mean:      {mean:.6f} s")
     print(f"Std Dev:   {std_dev:.6f} s")
-    print(f"{int(confidence * 100)}% CI: [{ci[0]:.6f}, {ci[1]:.6f}]")
+    print(f"{int(confidence * 100)}% CI: [{ci_low:.6f}, {ci_high:.6f}]")
+    print(
+        f"Jitter-aware expected range (±{t_score:.3f}σ): [{lower_bound:.6f}, {upper_bound:.6f}]"
+    )
 
     if tolerance is not None:
         print(f"Tolerance: ±{tolerance:.6f} s")
@@ -241,21 +317,8 @@ def summarize_durations_with_jitter_awareness(
             f"beyond allowed tolerance {tolerance:.6f}s"
         )
 
-    if component_stddev is not None:
-        lower = expected_duration - z_score * component_stddev
-        upper = expected_duration + z_score * component_stddev
-        print(f"Jitter-aware expected range (±{z_score}σ): [{lower:.6f}, {upper:.6f}]")
-        assert lower <= mean <= upper, (
-            f"Observed mean {mean:.6f}s outside expected jitter range "
-            f"[{lower:.6f}, {upper:.6f}]"
-        )
-    else:
-        # fallback to a traditional t-test
-        t_stat, p_value = ttest_1samp(arr, expected_duration)
-        alpha = 1 - confidence
-        print(f"T-statistic: {t_stat:.3f}")
-        print(f"P-value:     {p_value:.4f} (alpha = {alpha:.4f})")
-        assert p_value > alpha, (
-            f"Expected duration {expected_duration:.6f}s rejected by t-test "
-            f"(p = {p_value:.4f}, alpha = {alpha:.4f})"
-        )
+    # Optional: test if mean falls within jitter-aware interval
+    assert lower_bound <= mean <= upper_bound, (
+        f"{name} mean duration {mean:.6f}s falls outside jitter-aware range "
+        f"[{lower_bound:.6f}, {upper_bound:.6f}]"
+    )

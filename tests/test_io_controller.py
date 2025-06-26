@@ -12,6 +12,7 @@ def io_controller():
     io.cleanup()
 
 
+@pytest.mark.hardware
 def test_shutter_toggle(io_controller):
     io_controller.toggle_shutter(False)
     time.sleep(0.5)
@@ -20,6 +21,7 @@ def test_shutter_toggle(io_controller):
     io_controller.toggle_shutter(False)
 
 
+@pytest.mark.hardware
 def test_led_voltage_range(io_controller):
     for led in ["red", "green"]:
         for intensity in [0, 25, 50, 75, 100]:
