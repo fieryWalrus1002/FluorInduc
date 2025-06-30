@@ -2,13 +2,13 @@
 let lastStatus = "";
 
 async function startTask() {
-    const actinic = parseInt(document.getElementById("actinic_led_intensity").value || 50);
-    const measurement = parseInt(document.getElementById("measurement_led_intensity").value || 50);
+    const actinic = parseInt(document.getElementById("actinic_led_intensity").value || 25);
+    const measurement = parseInt(document.getElementById("measurement_led_intensity").value || 25);
     const recordingHz = parseInt(document.getElementById("recording_hz").value || 1000);
-    const aredDuration = parseFloat(document.getElementById("ared_duration_s").value || 3.0);
-    const waitAfterAred = parseFloat(document.getElementById("wait_after_ared_s").value || 0.002);
-    const agreenDelay = parseFloat(document.getElementById("agreen_delay_s").value || 0.002);
-    const agreenDuration = parseFloat(document.getElementById("agreen_duration_s").value || 2.0);
+    const aredDuration = parseFloat(document.getElementById("ared_duration_s").value || 0.0);
+    const waitAfterAred = parseFloat(document.getElementById("wait_after_ared_s").value || 0.0);
+    const agreenDelay = parseFloat(document.getElementById("agreen_delay_s").value || 0.0);
+    const agreenDuration = parseFloat(document.getElementById("agreen_duration_s").value || 1.5);
     const channelRange = parseInt(document.getElementById("channel_range").value || 50);
     const filename = document.getElementById("filename").value || "record.csv";
 
