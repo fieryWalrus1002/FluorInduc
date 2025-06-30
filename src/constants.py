@@ -32,7 +32,7 @@ STRING_BUFFER_SIZE = 524
 # This will constrain the min and max current that can be set.
 LED_VOLTAGE_RANGES = {
     "red": {"pin": LED_RED_PIN, "min": 0.0, "max": 5.0},
-    "green": {"pin": LED_GREEN_PIN, "min": 1.0, "max": 3.3},
+    "green": {"pin": LED_GREEN_PIN, "min": 1.0, "max": 5.0},
 }
 
 # Analog function generator settings
